@@ -522,10 +522,6 @@ impl Type {
             _ => return None,
         };
 
-        if path.generics().is_empty() {
-            return None;
-        }
-
         if path.generics().len() != 1 {
             return None;
         }
@@ -539,6 +535,11 @@ impl Type {
             Some(generic) => Cow::Owned(generic),
             None => Cow::Borrowed(unsimplified_generic),
         };
+
+        Self::simplify_generic1(config, path, generic)
+    }
+
+    fn simplify_generic1(config: &Config, path: &GenericPath, generic: Cow<'_, Type>) -> Option<Type> {
         match path.name() {
             "Option" => generic
                 .make_nullable()
@@ -563,6 +564,7 @@ impl Type {
             _ => None,
         }
     }
+
 
     pub fn simplify_standard_types(&mut self, config: &Config) {
         self.visit_types(|ty| ty.simplify_standard_types(config));
@@ -859,3 +861,4 @@ impl Type {
         }
     }
 }
+
