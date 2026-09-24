@@ -4,8 +4,9 @@ use cbindgen::*;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::OnceLock;
 use std::{env, fs, str};
 use tempfile::NamedTempFile;
 
@@ -13,6 +14,17 @@ use pretty_assertions::assert_eq;
 
 // Set automatically by cargo for integration tests
 static CBINDGEN_PATH: &str = env!("CARGO_BIN_EXE_cbindgen");
+
+/// Log file shared by all cbindgen invocations in this test run.
+/// It is truncated the first time it's requested, i.e. once per `cargo test`.
+fn log_file() -> &'static Path {
+    static LOG_FILE: OnceLock<PathBuf> = OnceLock::new();
+    LOG_FILE.get_or_init(|| {
+        let path = Path::new(env!("CARGO_TARGET_TMPDIR")).join("cbindgen-tests.log");
+        File::create(&path).expect("Failed to create log file");
+        path
+    })
+}
 
 fn style_str(style: Style) -> &'static str {
     match style {
@@ -44,6 +56,18 @@ fn run_cbindgen(
     );
     let program = Path::new(CBINDGEN_PATH);
     let mut command = Command::new(program);
+    command.env("CBINDGEN_LOG_FILE", log_file()).env(
+        "CBINDGEN_LOG_TAG",
+        format!(
+            "{} {:?}{}{}",
+            path.file_name().unwrap().to_string_lossy(),
+            language,
+            if cpp_compat { " compat" } else { "" },
+            style
+                .map(|s| format!(" {}", style_str(s)))
+                .unwrap_or_default(),
+        ),
+    );
     if let Some(output) = output {
         command.arg("--output").arg(output);
     }
@@ -324,7 +348,12 @@ fn run_compile_test(
         if verify {
             // Compare cbindgen output to expected (existing on disk) output.
             let prev_cbindgen_bindings = fs::read(&generated_file).unwrap();
-            assert_eq!(bindings_content, prev_cbindgen_bindings);
+            assert_eq!(
+                str::from_utf8(&prev_cbindgen_bindings).unwrap(),
+                str::from_utf8(&bindings_content).unwrap(),
+                "Generated bindings don't match {}",
+                generated_file.display(),
+            );
         } else {
             fs::write(&generated_file, &bindings_content)
                 .expect("Failed to write generated bindings.");
