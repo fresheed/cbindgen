@@ -300,6 +300,12 @@ impl ConstExpr {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Zst {
+    /// 1-aligned ZST; will be useful for null pointer optimization later
+    Zst1,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Type {
     Ptr {
@@ -348,14 +354,14 @@ impl Type {
         Ok((ty, never_return))
     }
 
-    pub fn load(ty: &syn::Type) -> Result<Option<Type>, String> {
+    pub fn load(ty: &syn::Type) -> Result<Result<Type, Zst>, String> {
         let converted = match *ty {
             syn::Type::Reference(ref reference) => {
                 let converted = Type::load(&reference.elem)?;
 
                 let converted = match converted {
-                    Some(converted) => converted,
-                    None => Type::Primitive(PrimitiveType::Void),
+                    Ok(converted) => converted,
+                    Err(_) => Type::Primitive(PrimitiveType::Void),
                 };
 
                 // TODO(emilio): we could make these use is_ref: true.
@@ -371,8 +377,8 @@ impl Type {
                 let converted = Type::load(&pointer.elem)?;
 
                 let converted = match converted {
-                    Some(converted) => converted,
-                    None => Type::Primitive(PrimitiveType::Void),
+                    Ok(converted) => converted,
+                    Err(_) => Type::Primitive(PrimitiveType::Void),
                 };
 
                 let is_const = matches!(pointer.mutability, syn::PointerMutability::Const(_));
@@ -387,7 +393,7 @@ impl Type {
                 let generic_path = GenericPath::load(&path.path)?;
 
                 if generic_path.name() == "PhantomData" || generic_path.name() == "PhantomPinned" {
-                    return Ok(None);
+                    return Ok(Err(Zst::Zst1));
                 }
 
                 if let Some(prim) = PrimitiveType::maybe(generic_path.name()) {
@@ -405,8 +411,8 @@ impl Type {
                 let converted = Type::load(elem)?;
 
                 let converted = match converted {
-                    Some(converted) => converted,
-                    None => return Err("Cannot have an array of zero sized types.".to_owned()),
+                    Ok(converted) => converted,
+                    Err(_) => return Err("Cannot have an array of zero sized types.".to_owned()),
                 };
 
                 let len = ConstExpr::load(len)?;
@@ -416,7 +422,8 @@ impl Type {
                 let mut wildcard_counter = 0;
                 let mut args = function.inputs.iter().try_skip_map(|x| {
                     Type::load(&x.ty).map(|opt_ty| {
-                        opt_ty.map(|ty| {
+                        opt_ty.ok()
+                            .map(|ty| {
                             (
                                 x.name.as_ref().map(|(ref ident, _)| {
                                     if ident == "_" {
@@ -447,8 +454,8 @@ impl Type {
                 }
             }
             syn::Type::Tuple(ref tuple) => {
-                if tuple.elems.is_empty() {
-                    return Ok(None);
+                if tuple.elems.is_empty() { // unit type
+                    return Ok(Err(Zst::Zst1));
                 }
                 return Err("Tuples are not supported types.".to_owned());
             }
@@ -458,7 +465,7 @@ impl Type {
             _ => return Err(format!("Unsupported type: {ty:?}")),
         };
 
-        Ok(Some(converted))
+        Ok(Ok(converted))
     }
 
     pub fn is_ptr(&self) -> bool {
