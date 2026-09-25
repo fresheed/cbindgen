@@ -80,6 +80,7 @@ impl<'a> Mangler<'a> {
                 self.append_mangled_type(&Type::Path(path.clone()), last);
             }
             GenericArgument::Const(ConstExpr::Value(ref val)) => self.output.push_str(val),
+            GenericArgument::Zst(_) => { },
         }
     }
 

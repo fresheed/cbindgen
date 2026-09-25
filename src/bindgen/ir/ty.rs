@@ -304,8 +304,6 @@ impl ConstExpr {
 pub enum Zst {
     /// 1-aligned ZST; will be useful for null pointer optimization later
     Zst1,
-    /// ZST with no alignment information
-    ZstGen,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -672,15 +670,11 @@ impl Type {
             }
             Type::Primitive(ref primitive) => Ok(Type::Primitive(primitive.clone())),
             Type::Array(ref ty, ref constant) => {
-                match ty.specialize(mappings) {
-                    Ok(inner) => Ok(Type::Array(
-                        Box::new(inner),
-                        constant.specialize(mappings),
-                    )),
-                    // this doesn't match the behavior of Type::load, 
-                    // but seems to make sense anyway
-                    Err(_) => Err(Zst::ZstGen),
-                }
+                // An array of 1-ZSTs is itself a 1-ZST (size 0, align 1), so propagate it.
+                // This doesn't match the behavior of Type::load, 
+                // but seems to make sense anyway
+                let inner = ty.specialize(mappings)?;
+                Ok(Type::Array(Box::new(inner), constant.specialize(mappings)))
             },
             Type::FuncPtr {
                 ref ret,

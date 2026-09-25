@@ -216,6 +216,7 @@ impl CDecl {
                 |language_backend, out, g| match *g {
                     GenericArgument::Type(ref ty) => language_backend.write_type(out, ty),
                     GenericArgument::Const(ref expr) => write!(out, "{}", expr.as_str()),
+                    GenericArgument::Zst(_) => {},
                 },
             );
             out.write(">");
