@@ -221,9 +221,10 @@ impl GenericArgument {
                         }
                     }
                 }
-                GenericArgument::Type(ty.specialize(mappings))
+                ty.specialize(mappings).map_or_else(GenericArgument::Zst, GenericArgument::Type)
             }
             GenericArgument::Const(ref expr) => GenericArgument::Const(expr.clone()),
+            GenericArgument::Zst(ref zst) => GenericArgument::Zst(zst.clone()),
         }
     }
 
@@ -231,6 +232,7 @@ impl GenericArgument {
         match *self {
             GenericArgument::Type(ref mut ty) => ty.rename_for_config(config, generic_params),
             GenericArgument::Const(ref mut expr) => expr.rename_for_config(config, generic_params),
+            GenericArgument::Zst(_) => {},
         }
     }
 }
