@@ -145,6 +145,10 @@ impl<'a> Mangler<'a> {
         let non_zst_generics: Vec<_> = self.generic_values.iter()
             .filter(|a| !matches!(a, GenericArgument::Zst(_))).collect();
         if non_zst_generics.is_empty() {
+            if !self.generic_values.is_empty() {
+                // All generics are ZSTs; we need to add an explicit marker for that
+                self.output.push_str("_0");
+            };
             return;
         }
         self.push(Separator::OpeningAngleBracket);
