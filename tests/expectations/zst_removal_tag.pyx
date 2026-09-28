@@ -6,7 +6,7 @@ cdef extern from *:
 
 cdef extern from *:
 
-  cdef struct Option_0:
+  cdef struct Option_1Z:
     pass
 
   cdef struct Option_u32:
@@ -14,4 +14,4 @@ cdef extern from *:
 
   void option_u32(Option_u32 arg);
 
-  void option_unit(Option_0 arg);
+  void option_unit(Option_1Z arg);

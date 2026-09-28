@@ -3,10 +3,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-typedef struct Option_0 Option_0;
+typedef struct Option_1Z Option_1Z;
 
 typedef struct Option_u32 Option_u32;
 
 void option_u32(struct Option_u32 arg);
 
-void option_unit(struct Option_0 arg);
+void option_unit(struct Option_1Z arg);

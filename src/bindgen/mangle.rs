@@ -18,6 +18,10 @@ pub fn mangle_name(
     Mangler::new(name, generic_values, /* last = */ true, config).mangle()
 }
 
+// Starts with digit to reduce chances of clashing with actual type names,
+// especially with remove_underscores=true
+const ZST_PLACEHOLDER: &str = "1Z";
+
 enum Separator {
     OpeningAngleBracket = 1,
     Comma,
@@ -80,7 +84,7 @@ impl<'a> Mangler<'a> {
                 self.append_mangled_type(&Type::Path(path.clone()), last);
             }
             GenericArgument::Const(ConstExpr::Value(ref val)) => self.output.push_str(val),
-            GenericArgument::Zst(_) => { },
+            GenericArgument::Zst(_) => self.output.push_str(ZST_PLACEHOLDER),
         }
     }
 
@@ -142,21 +146,16 @@ impl<'a> Mangler<'a> {
     fn mangle_internal(&mut self) {
         debug_assert!(self.output.is_empty());
         self.input.clone_into(&mut self.output);
-        let non_zst_generics: Vec<_> = self.generic_values.iter()
-            .filter(|a| !matches!(a, GenericArgument::Zst(_))).collect();
-        if non_zst_generics.is_empty() {
-            if !self.generic_values.is_empty() {
-                // All generics are ZSTs; we need to add an explicit marker for that
-                self.output.push_str("_0");
-            };
+        if self.generic_values.is_empty() {
             return;
         }
+
         self.push(Separator::OpeningAngleBracket);
-        for (i, arg) in non_zst_generics.iter().enumerate() {
+        for (i, arg) in self.generic_values.iter().enumerate() {
             if i != 0 {
                 self.push(Separator::Comma);
             }
-            let last = self.last && i == non_zst_generics.len() - 1;
+            let last = self.last && i == self.generic_values.len() - 1;
             self.append_mangled_argument(arg, last);
         }
 
