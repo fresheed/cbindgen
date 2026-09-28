@@ -206,24 +206,20 @@ impl CDecl {
         }
 
         write!(out, "{}", self.type_name);
-        let non_zst_generics: Vec<_> = self.type_generic_args.iter()
-            .filter(|a| !matches!(a, GenericArgument::Zst(_))).collect();
 
         if !self.type_generic_args.is_empty() {
-            // still need to write <> even if all generics are set to ZSTs
             out.write("<");
-            if !non_zst_generics.is_empty() {
-                out.write_horizontal_source_list(
-                    language_backend,
-                    &non_zst_generics,
-                    ListType::Join(", "),
-                    |language_backend, out, g| match *g {
-                        GenericArgument::Type(ref ty) => language_backend.write_type(out, ty),
-                        GenericArgument::Const(ref expr) => write!(out, "{}", expr.as_str()),
-                        GenericArgument::Zst(_) => panic!("ZST generics should've been filtered out by now"),
-                    },
-                );
-            }
+            out.write_horizontal_source_list(
+                language_backend,
+                &self.type_generic_args,
+                ListType::Join(", "),
+                |language_backend, out, g| match *g {
+                    GenericArgument::Type(ref ty) => language_backend.write_type(out, ty),
+                    GenericArgument::Const(ref expr) => write!(out, "{}", expr.as_str()),
+                    // Keeps the argument count and positions intact.
+                    GenericArgument::Zst(_) => write!(out, "void"),
+                },
+            );
             out.write(">");
         }
 

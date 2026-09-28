@@ -42,7 +42,7 @@ impl GenericParam {
             }) => {
                 let default = match default.as_ref().map(|(_, ty)| Type::load(ty)).transpose()? {
                     None => None,
-                    Some(Err(_)) => Some(GenericArgument::Type(Type::Primitive(PrimitiveType::Void))),
+                    Some(Err(Zst::Zst1)) => Some(GenericArgument::Zst(Zst::Zst1)),
                     Some(Ok(ty)) => Some(GenericArgument::Type(ty)),
                 };
                 Ok(Some(GenericParam {
@@ -157,7 +157,9 @@ impl GenericParams {
                         if let Some(GenericArgument::Type(ref ty)) = item.default {
                             write!(out, " = ");
                             cdecl::write_type(language_backend, out, ty, config);
-                        } else if with_default {
+                        } else if let Some(GenericArgument::Zst(Zst::Zst1)) = item.default {
+                            write!(out, " = void");                            
+                        } else if with_default  {
                             write!(out, " = void");
                         }
                     }

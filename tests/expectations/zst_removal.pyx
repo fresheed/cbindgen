@@ -12,6 +12,11 @@ cdef extern from *:
   ctypedef struct Option_u32:
     pass
 
+  ctypedef struct MyStruct_1Z:
+    uint32_t int_field;
+
   void option_u32(Option_u32 arg);
 
   void option_unit(Option_1Z arg);
+
+  MyStruct_1Z my_test();
