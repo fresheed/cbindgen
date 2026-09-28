@@ -157,33 +157,64 @@ fn run_cbindgen(
 /// Checks the warnings a test expects, given as annotations in its source:
 ///
 /// ```text
+/// //! cbindgen:test-expect-no-warnings
+///
 /// /// cbindgen:test-expect-warning-cpp=part of the warning text
 /// ```
 ///
-/// The suffix selects the language (`c`, `cpp` or `cython`), and the text must
-/// appear in cbindgen's stderr for every run in that language. Being an
-/// annotation, the text can't contain `=`, `,`, `[` or `]`; cbindgen itself
-/// ignores the unknown key, and annotations never end up in the output.
+/// `test-expect-no-warnings` is file-level (an inner doc comment at the top of
+/// the file) and requires cbindgen's stderr to be empty for every run.
+///
+/// `test-expect-warning-<lang>` goes on an item. The suffix selects the language
+/// (`c`, `cpp` or `cython`), and the text must appear in cbindgen's stderr for
+/// every run in that language. Being an annotation, the text can't contain `=`,
+/// `,`, `[` or `]`.
+///
+/// cbindgen itself ignores these unknown keys, and annotations never end up in
+/// the output.
 fn check_expected_warnings(path: &Path, language: Language, stderr: &str) {
     let lang = match language {
         Language::C => "c",
         Language::Cxx => "cpp",
         Language::Cython => "cython",
     };
-    let prefix = format!("cbindgen:test-expect-warning-{lang}=");
     // Crate-based tests are directories; they don't use this.
     let Ok(source) = fs::read_to_string(path) else {
         return;
     };
-    for line in source.lines() {
-        let Some(expected) = line
-            .trim_start()
-            .strip_prefix("///")
-            .and_then(|l| l.trim_start().strip_prefix(prefix.as_str()))
-        else {
-            continue;
-        };
-        let expected = expected.trim();
+    let annotations: Vec<&str> = source
+        .lines()
+        .filter_map(|line| {
+            let line = line.trim_start();
+            line.strip_prefix("///")
+                .or_else(|| line.strip_prefix("//!"))?
+                .trim_start()
+                .strip_prefix("cbindgen:")
+        })
+        .map(str::trim)
+        .collect();
+
+    let expect_no_warnings = annotations.contains(&"test-expect-no-warnings");
+    let warning_prefix = format!("test-expect-warning-{lang}=");
+    let expected_warnings: Vec<&str> = annotations
+        .iter()
+        .filter_map(|a| a.strip_prefix(warning_prefix.as_str()))
+        .map(str::trim)
+        .collect();
+
+    assert!(
+        !(expect_no_warnings && !expected_warnings.is_empty()),
+        "{} expects both no warnings and some {language:?} warnings",
+        path.display(),
+    );
+    if expect_no_warnings {
+        assert!(
+            stderr.trim().is_empty(),
+            "Expected no {language:?} warnings for {}, got:\n{stderr}",
+            path.display(),
+        );
+    }
+    for expected in expected_warnings {
         assert!(
             stderr.contains(expected),
             "Expected {language:?} warning not emitted for {}: {expected}\nstderr:\n{stderr}",
