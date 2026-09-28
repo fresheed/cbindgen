@@ -14,10 +14,12 @@ use crate::bindgen::library::Library;
 pub struct Monomorphs {
     replacements: HashMap<GenericPath, Path>,
     opaques: Vec<OpaqueItem>,
-    structs: Vec<Struct>,
-    unions: Vec<Union>,
     typedefs: Vec<Typedef>,
-    enums: Vec<Enum>,
+    // Pairs of (generic item, its monomorph). 
+    // This is needed for subsequent check for zero-sized fields
+    structs: Vec<(Struct, Struct)>,
+    unions: Vec<(Union, Union)>,
+    enums: Vec<(Enum, Enum)>,
 }
 
 impl Monomorphs {
@@ -42,7 +44,7 @@ impl Monomorphs {
 
         monomorph.add_monomorphs(library, self);
 
-        self.structs.push(monomorph);
+        self.structs.push((generic.clone(), monomorph));
     }
 
     pub fn insert_enum(
@@ -62,7 +64,7 @@ impl Monomorphs {
 
         monomorph.add_monomorphs(library, self);
 
-        self.enums.push(monomorph);
+        self.enums.push((generic.clone(), monomorph));
     }
 
     pub fn insert_union(
@@ -82,7 +84,7 @@ impl Monomorphs {
 
         monomorph.add_monomorphs(library, self);
 
-        self.unions.push(monomorph);
+        self.unions.push((generic.clone(), monomorph));
     }
 
     pub fn insert_opaque(
@@ -131,10 +133,16 @@ impl Monomorphs {
 
     pub fn drain_structs(&mut self) -> Vec<Struct> {
         mem::take(&mut self.structs)
+            .into_iter()
+            .map(|(_, monomorph)| monomorph)
+            .collect()
     }
 
     pub fn drain_unions(&mut self) -> Vec<Union> {
         mem::take(&mut self.unions)
+            .into_iter()
+            .map(|(_, monomorph)| monomorph)
+            .collect()
     }
 
     pub fn drain_typedefs(&mut self) -> Vec<Typedef> {
@@ -143,5 +151,8 @@ impl Monomorphs {
 
     pub fn drain_enums(&mut self) -> Vec<Enum> {
         mem::take(&mut self.enums)
+            .into_iter()
+            .map(|(_, monomorph)| monomorph)
+            .collect()
     }
 }
