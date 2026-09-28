@@ -38,6 +38,7 @@ struct CBindgenOutput {
     bindings_content: Vec<u8>,
     depfile_content: Option<String>,
     symfile_content: Option<String>,
+    stderr: String,
 }
 
 fn run_cbindgen(
@@ -149,6 +150,45 @@ fn run_cbindgen(
         bindings_content,
         depfile_content,
         symfile_content,
+        stderr: String::from_utf8_lossy(&cbindgen_output.stderr).into_owned(),
+    }
+}
+
+/// Checks the warnings a test expects, given as annotations in its source:
+///
+/// ```text
+/// /// cbindgen:test-expect-warning-cpp=part of the warning text
+/// ```
+///
+/// The suffix selects the language (`c`, `cpp` or `cython`), and the text must
+/// appear in cbindgen's stderr for every run in that language. Being an
+/// annotation, the text can't contain `=`, `,`, `[` or `]`; cbindgen itself
+/// ignores the unknown key, and annotations never end up in the output.
+fn check_expected_warnings(path: &Path, language: Language, stderr: &str) {
+    let lang = match language {
+        Language::C => "c",
+        Language::Cxx => "cpp",
+        Language::Cython => "cython",
+    };
+    let prefix = format!("cbindgen:test-expect-warning-{lang}=");
+    // Crate-based tests are directories; they don't use this.
+    let Ok(source) = fs::read_to_string(path) else {
+        return;
+    };
+    for line in source.lines() {
+        let Some(expected) = line
+            .trim_start()
+            .strip_prefix("///")
+            .and_then(|l| l.trim_start().strip_prefix(prefix.as_str()))
+        else {
+            continue;
+        };
+        let expected = expected.trim();
+        assert!(
+            stderr.contains(expected),
+            "Expected {language:?} warning not emitted for {}: {expected}\nstderr:\n{stderr}",
+            path.display(),
+        );
     }
 }
 
@@ -312,6 +352,7 @@ fn run_compile_test(
         bindings_content,
         depfile_content,
         symfile_content,
+        stderr,
     } = run_cbindgen(
         path,
         output_file,
@@ -322,6 +363,7 @@ fn run_compile_test(
         package_version,
         generate_symfile,
     );
+    check_expected_warnings(path, language, &stderr);
     if generate_depfile {
         let depfile = depfile_content.expect("No depfile generated");
         assert!(!depfile.is_empty());
