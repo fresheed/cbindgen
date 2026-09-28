@@ -15,8 +15,13 @@ cdef extern from *:
   cdef struct MyStruct_1Z:
     uint32_t int_field;
 
+  cdef struct S_u32__1Z:
+    uint32_t x;
+
   void option_u32(Option_u32 arg);
 
   void option_unit(Option_1Z arg);
 
   MyStruct_1Z my_test();
+
+  S_u32__1Z f();

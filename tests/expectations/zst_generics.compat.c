@@ -11,6 +11,10 @@ typedef struct {
   uint32_t int_field;
 } MyStruct_1Z;
 
+typedef struct {
+  uint32_t x;
+} S_u32__1Z;
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -20,6 +24,8 @@ void option_u32(Option_u32 arg);
 void option_unit(Option_1Z arg);
 
 MyStruct_1Z my_test(void);
+
+S_u32__1Z f(void);
 
 #ifdef __cplusplus
 }  // extern "C"
