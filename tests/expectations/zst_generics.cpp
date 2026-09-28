@@ -19,6 +19,28 @@ struct S {
   R y;
 };
 
+template<typename A, typename B>
+struct Either {
+  enum class Tag {
+    Left,
+    Right,
+  };
+
+  struct Left_Body {
+    A _0;
+  };
+
+  struct Right_Body {
+    B _0;
+  };
+
+  Tag tag;
+  union {
+    Left_Body left;
+    Right_Body right;
+  };
+};
+
 extern "C" {
 
 void option_u32(Option<uint32_t> arg);
@@ -28,5 +50,7 @@ void option_unit(Option<void> arg);
 MyStruct<void> my_test();
 
 S<uint32_t, void> f();
+
+Either<void, uint8_t> returns_either();
 
 }  // extern "C"

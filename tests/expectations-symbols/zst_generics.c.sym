@@ -2,4 +2,6 @@
 option_u32;
 option_unit;
 my_test;
+f;
+returns_either;
 };

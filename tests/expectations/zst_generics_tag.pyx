@@ -18,6 +18,15 @@ cdef extern from *:
   cdef struct S_u32__1Z:
     uint32_t x;
 
+  cdef enum Either_1Z__u8_Tag:
+    Left_1Z__u8,
+    Right_1Z__u8,
+
+  cdef struct Either_1Z__u8:
+    Either_1Z__u8_Tag tag;
+
+    uint8_t right;
+
   void option_u32(Option_u32 arg);
 
   void option_unit(Option_1Z arg);
@@ -25,3 +34,5 @@ cdef extern from *:
   MyStruct_1Z my_test();
 
   S_u32__1Z f();
+
+  Either_1Z__u8 returns_either();

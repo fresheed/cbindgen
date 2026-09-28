@@ -17,6 +17,7 @@ pub extern "C" fn my_test() -> MyStruct<()> { loop {} }
 
 // --------------------------
 // #228, original issue
+// also, #99 has a very similar example
 #[repr(C)]
 pub struct S<T, R> {
     x: T,
@@ -27,5 +28,22 @@ pub struct S<T, R> {
 #[no_mangle]
 pub extern "C" fn f() -> S<u32, ()> {
     panic!()
+}
+// --------------------------
+
+
+// --------------------------
+// #527, example by GoldsteinE
+// This ends up with an empty Left variant, which is not C standard, but allowed by GCC
+#[repr(C)]
+pub enum Either<A, B> {
+    Left(A),
+    Right(B),
+}
+
+/// cbindgen:test-expect-warning-cpp=C++ bindings for Either::Left (instantiated as Either_1Z__u8::Left_1Z__u8) may be ill-formed
+#[no_mangle]
+extern "C" fn returns_either() -> Either<(), u8> {
+    Either::Right(42)
 }
 // --------------------------
