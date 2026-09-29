@@ -41,6 +41,19 @@ struct Either {
   };
 };
 
+struct APIError {
+  uint32_t err;
+};
+
+template<typename O, typename E>
+struct CResultTempl {
+  bool result_good;
+  const O *result;
+  const E *err;
+};
+
+using CResultNoneAPIError = CResultTempl<void, APIError>;
+
 extern "C" {
 
 void option_u32(Option<uint32_t> arg);
@@ -52,5 +65,7 @@ MyStruct<void> my_test();
 S<uint32_t, void> f();
 
 Either<void, uint8_t> returns_either();
+
+void CResultNoneAPIError_free(CResultNoneAPIError _res);
 
 }  // extern "C"

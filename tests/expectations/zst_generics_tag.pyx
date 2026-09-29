@@ -27,6 +27,16 @@ cdef extern from *:
 
     uint8_t right;
 
+  cdef struct APIError:
+    uint32_t err;
+
+  cdef struct CResultTempl_1Z__APIError:
+    bool result_good;
+    const void *result;
+    const APIError *err;
+
+  ctypedef CResultTempl_1Z__APIError CResultNoneAPIError;
+
   void option_u32(Option_u32 arg);
 
   void option_unit(Option_1Z arg);
@@ -36,3 +46,5 @@ cdef extern from *:
   S_u32__1Z f();
 
   Either_1Z__u8 returns_either();
+
+  void CResultNoneAPIError_free(CResultNoneAPIError _res);

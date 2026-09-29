@@ -32,6 +32,18 @@ typedef struct {
   };
 } Either_1Z__u8;
 
+typedef struct {
+  uint32_t err;
+} APIError;
+
+typedef struct {
+  bool result_good;
+  const void *result;
+  const APIError *err;
+} CResultTempl_1Z__APIError;
+
+typedef CResultTempl_1Z__APIError CResultNoneAPIError;
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -45,6 +57,8 @@ MyStruct_1Z my_test(void);
 S_u32__1Z f(void);
 
 Either_1Z__u8 returns_either(void);
+
+void CResultNoneAPIError_free(CResultNoneAPIError _res);
 
 #ifdef __cplusplus
 }  // extern "C"

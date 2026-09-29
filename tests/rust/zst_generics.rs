@@ -47,3 +47,26 @@ extern "C" fn returns_either() -> Either<(), u8> {
     Either::Right(42)
 }
 // --------------------------
+
+
+// --------------------------
+// #527, example by TheBlueMatt (simplified): pointers to ZST can be safely represented as *void
+#[repr(C)]
+pub struct CResultTempl<O, E> {
+	pub result_good: bool,
+	pub result: *const O,
+	pub err: *const E,
+}
+
+// simplified the rest of example by removing unknown types and replacing static with function
+#[repr(C)]
+pub struct APIError {
+    err: u32,
+}
+
+#[no_mangle]
+pub type CResultNoneAPIError = CResultTempl<(), APIError>;
+
+#[no_mangle]
+pub extern "C" fn CResultNoneAPIError_free(_res: CResultNoneAPIError) {}
+// --------------------------
