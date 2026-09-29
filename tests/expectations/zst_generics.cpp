@@ -11,6 +11,12 @@ template<typename T = void, typename E = void>
 struct Result;
 
 template<typename T>
+struct StructWithGenArray {
+  T gen_array[5];
+  uint32_t other_field;
+};
+
+template<typename T>
 struct MyStruct {
   uint32_t int_field;
   T generic_field;
@@ -64,6 +70,8 @@ void option_u32(Option<uint32_t> arg);
 void option_unit(Option<void> arg);
 
 void result_zsts(Result<void, uint32_t> arg1, Result<uint32_t, void> arg2, Result<void, void> arg3);
+
+void use_struct(StructWithGenArray<void> arg);
 
 MyStruct<void> my_test();
 

@@ -13,6 +13,10 @@ struct Result_1Z__u32;
 
 struct Result_u32__1Z;
 
+struct StructWithGenArray_1Z {
+  uint32_t other_field;
+};
+
 struct MyStruct_1Z {
   uint32_t int_field;
 };
@@ -59,6 +63,8 @@ void option_u32(struct Option_u32 arg);
 void option_unit(struct Option_1Z arg);
 
 void result_zsts(struct Result_1Z__u32 arg1, struct Result_u32__1Z arg2, struct Result_1Z__1Z arg3);
+
+void use_struct(struct StructWithGenArray_1Z arg);
 
 struct MyStruct_1Z my_test(void);
 

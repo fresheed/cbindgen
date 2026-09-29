@@ -7,6 +7,16 @@ pub extern "C" fn option_unit(arg: Option<()>) {}
 #[no_mangle]
 pub extern "C" fn result_zsts(arg1: Result<(), u32>, arg2: Result<u32, PhantomData<u32>>, arg3: Result<(), PhantomData<u32>>) {}
 
+#[repr(C)]
+pub struct StructWithGenArray<T> {
+    gen_array: [T; 5],
+    other_field: u32,
+}
+
+/// cbindgen:test-expect-warning-cpp=C++ bindings for StructWithGenArray (instantiated as StructWithGenArray_1Z) may be ill-formed
+#[no_mangle]
+pub extern "C" fn use_struct(arg: StructWithGenArray<()>) {}
+
 // --------------------------
 // #659
 #[repr(C)]
