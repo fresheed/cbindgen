@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 use std::mem;
 
+use crate::bindgen::ir::Type;
 use crate::bindgen::ir::{
     Enum, Field, GenericArgument, GenericPath, Item, OpaqueItem, Path, Struct, Typedef, Union,
     VariantBody,
@@ -128,45 +129,23 @@ impl Monomorphs {
     /// arguments as `void`. Instantiations that lose fields to such arguments
     /// can't be represented correctly, so warn about them.
     pub fn warn_zst_instantiations(&self) {
-        fn warn_missing(
-            generic_name: &str,
-            monomorph_name: &str,
-            generic: &[Field],
-            monomorph: &[Field],
-        ) {
-            let missing: Vec<&str> = generic
-                .iter()
-                .map(|f| f.name.as_str())
-                .filter(|name| !monomorph.iter().any(|f| f.name == *name))
-                .collect();
-            if !missing.is_empty() {
-                warn!(
-                    "C++ bindings for {} (instantiated as {}) may be ill-formed: \
-                     field(s) {} have zero-sized types.",
-                    generic_name,
-                    monomorph_name,
-                    missing.join(", ")
-                );
-            }
-        }
-
         for (g, m) in &self.structs {
             // Variant bodies are reported by the enum loop below, under the
             // enum's name.
             if g.is_enum_variant_body {
                 continue;
             }
-            warn_missing(g.path.name(), m.path.name(), &g.fields, &m.fields);
+            Self::warn_missing(g.path.name(), m.path.name(), &g.fields, &m.fields);
         }
         for (g, m) in &self.unions {
-            warn_missing(g.path.name(), m.path.name(), &g.fields, &m.fields);
+            Self::warn_missing(g.path.name(), m.path.name(), &g.fields, &m.fields);
         }
         for (g, m) in &self.enums {
             for (gv, mv) in g.variants.iter().zip(&m.variants) {
                 if let (VariantBody::Body { body: gb, .. }, VariantBody::Body { body: mb, .. }) =
                     (&gv.body, &mv.body)
                 {
-                    warn_missing(
+                    Self::warn_missing(
                         &format!("{}::{}", g.path, gv.name),
                         &format!("{}::{}", m.path, mv.name),
                         &gb.fields,
@@ -174,6 +153,70 @@ impl Monomorphs {
                     );
                 }
             }
+        }
+    }
+
+    fn warn_missing<'a>(
+        generic_name: &str,
+        monomorph_name: &str,
+        generic: &'a[Field], // lifetime needed to make check_in_mono work
+        monomorph: &[Field],
+    ) {
+        let check_in_mono = |gf: &'a Field| {
+            let mono = monomorph.iter().find(|mf| mf.name == gf.name);
+            let Some(mf) = mono else {
+                return Some(gf.name.as_str());
+            };
+            if Self::cnt_args_arrays(&gf.ty) != Self::cnt_args_arrays(&mf.ty) {
+                return Some(gf.name.as_str())
+            } else {
+                return None
+            }
+        };
+
+        let invalid: Vec<&str> = generic
+            .iter()
+            .filter_map(check_in_mono)
+            .collect();
+            
+        if !invalid.is_empty() {
+            warn!(
+                "C++ bindings for {} (instantiated as {}) may be ill-formed: \
+                    field(s) {} are zero-sized or contain zero-sized arguments or arrays",
+                generic_name,
+                monomorph_name,
+                invalid.join(", ")
+            );
+        }
+    }
+    
+    // Specialization might lead to arrays of ZST and ZST function arguments,
+    // both of which are not valid in C++.
+    // To avoid it, we can monomorphize the generic and recursively count both of the above.
+    // Since both are eventually removed, monomorph count will be smaller.
+    fn cnt_args_arrays(ty: &Type) -> usize {
+        match ty {
+            Type::Ptr { ty, .. } => Self::cnt_args_arrays(ty),
+            // Arrays of 1-ZST are treated as 1-ZST themselves (see ty.rs).
+            // Afterwards, they're not preserved:
+            // they're just erased / replaced with pointer / replaced with general "ZST argument to opaque generic".
+            // So for comparison, it's valid to just count the nested Array entries.
+            Type::Array(ty, _) => 1 + Self::cnt_args_arrays(ty),
+            Type::FuncPtr { ret, args, .. } => {
+                // ZST arguments are always dropped, so we can just recursively count them for comparison
+                args.len() 
+                + Self::cnt_args_arrays(ret) 
+                + args.iter().map(|(_, t)| Self::cnt_args_arrays(t)).sum::<usize>()
+            }
+            Type::Path(path) => path
+                .generics()
+                .iter()
+                .map(|g| match g {
+                    GenericArgument::Type(t) => Self::cnt_args_arrays(t),
+                    _ => 0,
+                })
+                .sum(),
+            Type::Primitive(_) => 0,
         }
     }
 

@@ -670,7 +670,7 @@ impl Type {
             }
             Type::Primitive(ref primitive) => Ok(Type::Primitive(primitive.clone())),
             Type::Array(ref ty, ref constant) => {
-                // An array of 1-ZSTs is itself a 1-ZST (size 0, align 1), so propagate it.
+                // An array of 1-ZSTs is itself a 1-ZST, so propagate it.
                 // This doesn't match the behavior of Type::load, 
                 // but seems to make sense anyway
                 let inner = ty.specialize(mappings)?;

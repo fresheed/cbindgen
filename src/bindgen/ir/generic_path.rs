@@ -6,7 +6,7 @@ use syn::ext::IdentExt;
 use crate::bindgen::cdecl;
 use crate::bindgen::config::{Config, Language};
 use crate::bindgen::declarationtyperesolver::{DeclarationType, DeclarationTypeResolver};
-use crate::bindgen::ir::{ConstExpr, Path, PrimitiveType, Type, Zst};
+use crate::bindgen::ir::{ConstExpr, Path, Type, Zst};
 use crate::bindgen::language_backend::LanguageBackend;
 use crate::bindgen::utilities::IterHelpers;
 use crate::bindgen::writer::SourceWriter;
