@@ -7,6 +7,12 @@ typedef struct Option_1Z Option_1Z;
 
 typedef struct Option_u32 Option_u32;
 
+typedef struct Result_1Z__1Z Result_1Z__1Z;
+
+typedef struct Result_1Z__u32 Result_1Z__u32;
+
+typedef struct Result_u32__1Z Result_u32__1Z;
+
 typedef struct {
   uint32_t int_field;
 } MyStruct_1Z;
@@ -47,6 +53,8 @@ typedef CResultTempl_1Z__APIError CResultNoneAPIError;
 void option_u32(Option_u32 arg);
 
 void option_unit(Option_1Z arg);
+
+void result_zsts(Result_1Z__u32 arg1, Result_u32__1Z arg2, Result_1Z__1Z arg3);
 
 MyStruct_1Z my_test(void);
 

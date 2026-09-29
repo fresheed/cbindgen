@@ -4,6 +4,9 @@ pub extern "C" fn option_u32(arg: Option<u32>) {}
 #[no_mangle]
 pub extern "C" fn option_unit(arg: Option<()>) {}
 
+#[no_mangle]
+pub extern "C" fn result_zsts(arg1: Result<(), u32>, arg2: Result<u32, PhantomData<u32>>, arg3: Result<(), PhantomData<u32>>) {}
+
 // --------------------------
 // #659
 #[repr(C)]

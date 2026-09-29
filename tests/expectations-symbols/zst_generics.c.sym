@@ -1,6 +1,7 @@
 {
 option_u32;
 option_unit;
+result_zsts;
 my_test;
 f;
 returns_either;

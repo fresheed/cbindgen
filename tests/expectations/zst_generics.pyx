@@ -12,6 +12,15 @@ cdef extern from *:
   ctypedef struct Option_u32:
     pass
 
+  ctypedef struct Result_1Z__1Z:
+    pass
+
+  ctypedef struct Result_1Z__u32:
+    pass
+
+  ctypedef struct Result_u32__1Z:
+    pass
+
   ctypedef struct MyStruct_1Z:
     uint32_t int_field;
 
@@ -40,6 +49,8 @@ cdef extern from *:
   void option_u32(Option_u32 arg);
 
   void option_unit(Option_1Z arg);
+
+  void result_zsts(Result_1Z__u32 arg1, Result_u32__1Z arg2, Result_1Z__1Z arg3);
 
   MyStruct_1Z my_test();
 

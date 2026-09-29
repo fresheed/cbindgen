@@ -7,6 +7,9 @@
 template<typename T = void>
 struct Option;
 
+template<typename T = void, typename E = void>
+struct Result;
+
 template<typename T>
 struct MyStruct {
   uint32_t int_field;
@@ -59,6 +62,8 @@ extern "C" {
 void option_u32(Option<uint32_t> arg);
 
 void option_unit(Option<void> arg);
+
+void result_zsts(Result<void, uint32_t> arg1, Result<uint32_t, void> arg2, Result<void, void> arg3);
 
 MyStruct<void> my_test();
 
