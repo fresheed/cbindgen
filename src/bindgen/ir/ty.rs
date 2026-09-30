@@ -671,8 +671,9 @@ impl Type {
             Type::Primitive(ref primitive) => Ok(Type::Primitive(primitive.clone())),
             Type::Array(ref ty, ref constant) => {
                 // An array of 1-ZSTs is itself a 1-ZST, so propagate it.
-                // This doesn't match the behavior of Type::load, 
-                // but seems to make sense anyway
+                // This doesn't match the behavior of Type::load (which explicitly prohibits it), 
+                // but we cannot rule out monomorphizations ahead of time,
+                // so we just proceed with ZST here
                 let inner = ty.specialize(mappings)?;
                 Ok(Type::Array(Box::new(inner), constant.specialize(mappings)))
             },

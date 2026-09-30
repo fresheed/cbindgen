@@ -17,8 +17,7 @@ pub struct Monomorphs {
     replacements: HashMap<GenericPath, Path>,
     opaques: Vec<OpaqueItem>,
     typedefs: Vec<Typedef>,
-    // Pairs of (generic item, its monomorph).
-    // This is needed for subsequent check for zero-sized fields
+    // Pairs of (generic item, its monomorph) needed for subsequent C++ validity check
     structs: Vec<(Struct, Struct)>,
     unions: Vec<(Union, Union)>,
     enums: Vec<(Enum, Enum)>,
@@ -125,13 +124,12 @@ impl Monomorphs {
         self.typedefs.push(monomorph);
     }
 
-    /// C++ bindings keep generic items as templates and write zero-sized generic
-    /// arguments as `void`. Instantiations that lose fields to such arguments
+    /// C++ bindings keep generic templates and write zero-sized generic arguments as `void`. 
+    /// Instantiations that lose fields or function arguments due to this
     /// can't be represented correctly, so warn about them.
     pub fn warn_zst_instantiations(&self) {
         for (g, m) in &self.structs {
-            // Variant bodies are reported by the enum loop below, under the
-            // enum's name.
+            // Variant bodies are reported by the enum loop below, under the enum's name.
             if g.is_enum_variant_body {
                 continue;
             }
@@ -190,10 +188,8 @@ impl Monomorphs {
         }
     }
     
-    // Specialization might lead to arrays of ZST and ZST function arguments,
-    // both of which are not valid in C++.
-    // To avoid it, we can monomorphize the generic and recursively count both of the above.
-    // Since both are eventually removed, monomorph count will be smaller.
+    // Specialization might lead to arrays of ZST and ZST function arguments, both of which are not valid in C++.
+    // To check if it happened, we can recursively count both of the above for generic and its monomorph.    
     fn cnt_args_arrays(ty: &Type) -> usize {
         match ty {
             Type::Ptr { ty, .. } => Self::cnt_args_arrays(ty),

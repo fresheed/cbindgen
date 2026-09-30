@@ -233,17 +233,14 @@ impl Item for Union {
             &library.get_config().export.mangle,
         );
         
-        let mk_field = |field: &Field, ty: Type| {
-            Field { ty, ..field.clone() }
-        };
-        
         let monomorph = Union::new(
             mangled_path,
             GenericParams::default(),
             self.fields
                 .iter()
                 .filter_map(|field| field.ty.specialize(&mappings)
-                    .ok().map(|ty| mk_field(field, ty)))
+                    .ok()
+                    .map(|ty| { Field { ty, ..field.clone() }}))
                 .collect(),
             self.alignment,
             self.tuple_union,

@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 use crate::bindgen::config::MangleConfig;
+use crate::bindgen::ir::Zst::Zst1;
 use crate::bindgen::ir::{ConstExpr, GenericArgument, Path, Type};
 use crate::bindgen::rename::IdentifierType;
 
@@ -18,8 +19,7 @@ pub fn mangle_name(
     Mangler::new(name, generic_values, /* last = */ true, config).mangle()
 }
 
-// Starts with digit to reduce chances of clashing with actual type names,
-// especially with remove_underscores=true
+// Starts with digit to reduce chances of clashing with actual type names
 const ZST_PLACEHOLDER: &str = "1Z";
 
 enum Separator {
@@ -84,7 +84,8 @@ impl<'a> Mangler<'a> {
                 self.append_mangled_type(&Type::Path(path.clone()), last);
             }
             GenericArgument::Const(ConstExpr::Value(ref val)) => self.output.push_str(val),
-            GenericArgument::Zst(_) => self.output.push_str(ZST_PLACEHOLDER),
+            // All 1-ZSTs are explicitly represented with a placeholder
+            GenericArgument::Zst(Zst1) => self.output.push_str(ZST_PLACEHOLDER),
         }
     }
 

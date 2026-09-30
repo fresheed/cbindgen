@@ -72,6 +72,8 @@ impl Library {
         if self.config.language != Language::Cxx {
             self.instantiate_monomorphs();
         } else {
+            // C++ doesn't really need monomorphization,
+            // but we run it to detect improper instantiations arising from ZSTs
             self.collect_monomorphs().warn_zst_instantiations();
         }
         self.remove_excluded();
