@@ -5,8 +5,10 @@
 use std::collections::HashMap;
 use std::mem;
 
+use crate::bindgen::ir::Type;
 use crate::bindgen::ir::{
-    Enum, GenericArgument, GenericPath, Item, OpaqueItem, Path, Struct, Typedef, Union,
+    Enum, Field, GenericArgument, GenericPath, Item, OpaqueItem, Path, Struct, Typedef, Union,
+    VariantBody,
 };
 use crate::bindgen::library::Library;
 
@@ -14,10 +16,11 @@ use crate::bindgen::library::Library;
 pub struct Monomorphs {
     replacements: HashMap<GenericPath, Path>,
     opaques: Vec<OpaqueItem>,
-    structs: Vec<Struct>,
-    unions: Vec<Union>,
     typedefs: Vec<Typedef>,
-    enums: Vec<Enum>,
+    // Pairs of (generic item, its monomorph) needed for subsequent C++ validity check
+    structs: Vec<(Struct, Struct)>,
+    unions: Vec<(Union, Union)>,
+    enums: Vec<(Enum, Enum)>,
 }
 
 impl Monomorphs {
@@ -42,7 +45,7 @@ impl Monomorphs {
 
         monomorph.add_monomorphs(library, self);
 
-        self.structs.push(monomorph);
+        self.structs.push((generic.clone(), monomorph));
     }
 
     pub fn insert_enum(
@@ -62,7 +65,7 @@ impl Monomorphs {
 
         monomorph.add_monomorphs(library, self);
 
-        self.enums.push(monomorph);
+        self.enums.push((generic.clone(), monomorph));
     }
 
     pub fn insert_union(
@@ -82,7 +85,7 @@ impl Monomorphs {
 
         monomorph.add_monomorphs(library, self);
 
-        self.unions.push(monomorph);
+        self.unions.push((generic.clone(), monomorph));
     }
 
     pub fn insert_opaque(
@@ -121,6 +124,98 @@ impl Monomorphs {
         self.typedefs.push(monomorph);
     }
 
+    /// C++ bindings keep generic templates and write zero-sized generic arguments as `void`. 
+    /// Instantiations that lose fields or function arguments due to this
+    /// can't be represented correctly, so warn about them.
+    pub fn warn_zst_instantiations(&self) {
+        for (g, m) in &self.structs {
+            // Variant bodies are reported by the enum loop below, under the enum's name.
+            if g.is_enum_variant_body {
+                continue;
+            }
+            Self::warn_missing(g.path.name(), m.path.name(), &g.fields, &m.fields);
+        }
+        for (g, m) in &self.unions {
+            Self::warn_missing(g.path.name(), m.path.name(), &g.fields, &m.fields);
+        }
+        for (g, m) in &self.enums {
+            for (gv, mv) in g.variants.iter().zip(&m.variants) {
+                if let (VariantBody::Body { body: gb, .. }, VariantBody::Body { body: mb, .. }) =
+                    (&gv.body, &mv.body)
+                {
+                    Self::warn_missing(
+                        &format!("{}::{}", g.path, gv.name),
+                        &format!("{}::{}", m.path, mv.name),
+                        &gb.fields,
+                        &mb.fields,
+                    );
+                }
+            }
+        }
+    }
+
+    fn warn_missing<'a>(
+        generic_name: &str,
+        monomorph_name: &str,
+        generic: &'a[Field], // lifetime needed to make check_in_mono work
+        monomorph: &[Field],
+    ) {
+        let check_in_mono = |gf: &'a Field| {
+            let mono = monomorph.iter().find(|mf| mf.name == gf.name);
+            let Some(mf) = mono else {
+                return Some(gf.name.as_str());
+            };
+            if Self::cnt_args_arrays(&gf.ty) != Self::cnt_args_arrays(&mf.ty) {
+                return Some(gf.name.as_str())
+            } else {
+                return None
+            }
+        };
+
+        let invalid: Vec<&str> = generic
+            .iter()
+            .filter_map(check_in_mono)
+            .collect();
+            
+        if !invalid.is_empty() {
+            warn!(
+                "C++ bindings for {} (instantiated as {}) may be ill-formed: \
+                    field(s) {} are zero-sized or contain zero-sized arguments or arrays",
+                generic_name,
+                monomorph_name,
+                invalid.join(", ")
+            );
+        }
+    }
+    
+    // Specialization might lead to arrays of ZST and ZST function arguments, both of which are not valid in C++.
+    // To check if it happened, we can recursively count both of the above for generic and its monomorph.    
+    fn cnt_args_arrays(ty: &Type) -> usize {
+        match ty {
+            Type::Ptr { ty, .. } => Self::cnt_args_arrays(ty),
+            // Arrays of 1-ZST are treated as 1-ZST themselves (see ty.rs).
+            // Afterwards, they're not preserved:
+            // they're just erased / replaced with pointer / replaced with general "ZST argument to opaque generic".
+            // So for comparison, it's valid to just count the nested Array entries.
+            Type::Array(ty, _) => 1 + Self::cnt_args_arrays(ty),
+            Type::FuncPtr { ret, args, .. } => {
+                // ZST arguments are always dropped, so we can just recursively count them for comparison
+                args.len() 
+                + Self::cnt_args_arrays(ret) 
+                + args.iter().map(|(_, t)| Self::cnt_args_arrays(t)).sum::<usize>()
+            }
+            Type::Path(path) => path
+                .generics()
+                .iter()
+                .map(|g| match g {
+                    GenericArgument::Type(t) => Self::cnt_args_arrays(t),
+                    _ => 0,
+                })
+                .sum(),
+            Type::Primitive(_) => 0,
+        }
+    }
+
     pub fn mangle_path(&self, path: &GenericPath) -> Option<&Path> {
         self.replacements.get(path)
     }
@@ -131,10 +226,16 @@ impl Monomorphs {
 
     pub fn drain_structs(&mut self) -> Vec<Struct> {
         mem::take(&mut self.structs)
+            .into_iter()
+            .map(|(_, monomorph)| monomorph)
+            .collect()
     }
 
     pub fn drain_unions(&mut self) -> Vec<Union> {
         mem::take(&mut self.unions)
+            .into_iter()
+            .map(|(_, monomorph)| monomorph)
+            .collect()
     }
 
     pub fn drain_typedefs(&mut self) -> Vec<Typedef> {
@@ -143,5 +244,8 @@ impl Monomorphs {
 
     pub fn drain_enums(&mut self) -> Vec<Enum> {
         mem::take(&mut self.enums)
+            .into_iter()
+            .map(|(_, monomorph)| monomorph)
+            .collect()
     }
 }

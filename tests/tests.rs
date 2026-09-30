@@ -4,8 +4,9 @@ use cbindgen::*;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::OnceLock;
 use std::{env, fs, str};
 use tempfile::NamedTempFile;
 
@@ -13,6 +14,17 @@ use pretty_assertions::assert_eq;
 
 // Set automatically by cargo for integration tests
 static CBINDGEN_PATH: &str = env!("CARGO_BIN_EXE_cbindgen");
+
+/// Log file shared by all cbindgen invocations in this test run.
+/// It is truncated the first time it's requested, i.e. once per `cargo test`.
+fn log_file() -> &'static Path {
+    static LOG_FILE: OnceLock<PathBuf> = OnceLock::new();
+    LOG_FILE.get_or_init(|| {
+        let path = Path::new(env!("CARGO_TARGET_TMPDIR")).join("cbindgen-tests.log");
+        File::create(&path).expect("Failed to create log file");
+        path
+    })
+}
 
 fn style_str(style: Style) -> &'static str {
     match style {
@@ -26,6 +38,7 @@ struct CBindgenOutput {
     bindings_content: Vec<u8>,
     depfile_content: Option<String>,
     symfile_content: Option<String>,
+    stderr: String,
 }
 
 fn run_cbindgen(
@@ -44,6 +57,18 @@ fn run_cbindgen(
     );
     let program = Path::new(CBINDGEN_PATH);
     let mut command = Command::new(program);
+    command.env("CBINDGEN_LOG_FILE", log_file()).env(
+        "CBINDGEN_LOG_TAG",
+        format!(
+            "{} {:?}{}{}",
+            path.file_name().unwrap().to_string_lossy(),
+            language,
+            if cpp_compat { " compat" } else { "" },
+            style
+                .map(|s| format!(" {}", style_str(s)))
+                .unwrap_or_default(),
+        ),
+    );
     if let Some(output) = output {
         command.arg("--output").arg(output);
     }
@@ -125,6 +150,72 @@ fn run_cbindgen(
         bindings_content,
         depfile_content,
         symfile_content,
+        stderr: String::from_utf8_lossy(&cbindgen_output.stderr).into_owned(),
+    }
+}
+
+/// Checks the warnings a test expects, given as annotations in its source:
+///
+/// ```text
+/// //! cbindgen:test-expect-no-warnings
+/// ```
+/// This is file-level (an inner doc comment at the top of
+/// the file) and requires cbindgen's stderr to be empty for every run.
+/// ```text
+/// /// cbindgen:test-expect-warning-<lang>=(part of the warning text...)
+/// ```
+/// This applies to an item. The suffix selects the language
+/// (`c`, `cpp` or `cython`), and the text must appear in cbindgen's stderr for
+/// every run in that language. Being an annotation, the text can't contain `=`,
+/// `,`, `[` or `]`.
+fn check_expected_warnings(path: &Path, language: Language, stderr: &str) {
+    let lang = match language {
+        Language::C => "c",
+        Language::Cxx => "cpp",
+        Language::Cython => "cython",
+    };
+    // Crate-based tests are directories; they don't use this.
+    let Ok(source) = fs::read_to_string(path) else {
+        return;
+    };
+    let annotations: Vec<&str> = source
+        .lines()
+        .filter_map(|line| {
+            let line = line.trim_start();
+            line.strip_prefix("///")
+                .or_else(|| line.strip_prefix("//!"))?
+                .trim_start()
+                .strip_prefix("cbindgen:")
+        })
+        .map(str::trim)
+        .collect();
+
+    let expect_no_warnings = annotations.contains(&"test-expect-no-warnings");
+    let warning_prefix = format!("test-expect-warning-{lang}=");
+    let expected_warnings: Vec<&str> = annotations
+        .iter()
+        .filter_map(|a| a.strip_prefix(warning_prefix.as_str()))
+        .map(str::trim)
+        .collect();
+
+    assert!(
+        !(expect_no_warnings && !expected_warnings.is_empty()),
+        "{} expects both no warnings and some {language:?} warnings",
+        path.display(),
+    );
+    if expect_no_warnings {
+        assert!(
+            stderr.trim().is_empty(),
+            "Expected no {language:?} warnings for {}, got:\n{stderr}",
+            path.display(),
+        );
+    }
+    for expected in expected_warnings {
+        assert!(
+            stderr.contains(expected),
+            "Expected {language:?} warning not emitted for {}: {expected}\nstderr:\n{stderr}",
+            path.display(),
+        );
     }
 }
 
@@ -288,6 +379,7 @@ fn run_compile_test(
         bindings_content,
         depfile_content,
         symfile_content,
+        stderr,
     } = run_cbindgen(
         path,
         output_file,
@@ -320,11 +412,17 @@ fn run_compile_test(
         } else if generated_file.exists() {
             fs::remove_file(&generated_file).unwrap();
         }
+        check_expected_warnings(path, language, &stderr);
     } else {
         if verify {
             // Compare cbindgen output to expected (existing on disk) output.
             let prev_cbindgen_bindings = fs::read(&generated_file).unwrap();
-            assert_eq!(bindings_content, prev_cbindgen_bindings);
+            assert_eq!(
+                str::from_utf8(&prev_cbindgen_bindings).unwrap(),
+                str::from_utf8(&bindings_content).unwrap(),
+                "Generated bindings don't match {}",
+                generated_file.display(),
+            );
         } else {
             fs::write(&generated_file, &bindings_content)
                 .expect("Failed to write generated bindings.");
@@ -334,6 +432,9 @@ fn run_compile_test(
                     .expect("Failed to write generated symbols.");
             }
         }
+        // Checked only after the expectations are written, so that a
+        // mismatch doesn't prevent regenerating them.
+        check_expected_warnings(path, language, &stderr);
 
         cbindgen_outputs.insert(bindings_content);
 

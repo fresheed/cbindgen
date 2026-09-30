@@ -10,8 +10,7 @@ use crate::bindgen::config::Config;
 use crate::bindgen::declarationtyperesolver::DeclarationTypeResolver;
 use crate::bindgen::dependencies::Dependencies;
 use crate::bindgen::ir::{
-    AnnotationSet, Cfg, Documentation, Field, GenericArgument, GenericParams, Item, ItemContainer,
-    Path, Struct, Type,
+    AnnotationSet, Cfg, Documentation, Field, GenericArgument, GenericParams, Item, ItemContainer, Path, Struct, Type, Zst,
 };
 use crate::bindgen::library::Library;
 use crate::bindgen::mangle;
@@ -31,19 +30,19 @@ pub struct Typedef {
 
 impl Typedef {
     pub fn load(item: &syn::ItemType, mod_cfg: Option<&Cfg>) -> Result<Typedef, String> {
-        if let Some(x) = Type::load(&item.ty)? {
-            let path = Path::new(item.ident.unraw().to_string());
-            Ok(Typedef::new(
-                path,
-                GenericParams::load(&item.generics)?,
-                x,
-                Cfg::append(mod_cfg, Cfg::load(&item.attrs)),
-                AnnotationSet::load(&item.attrs)?,
-                Documentation::load(&item.attrs),
-            ))
-        } else {
-            Err("Cannot have a typedef of a zero sized type.".to_owned())
-        }
+        let x = match Type::load(&item.ty)? {
+            Ok(ty) => ty,
+            Err::<_, Zst>(_) => return Err("Cannot have a typedef of a zero sized type.".to_owned()),
+        };
+        let path = Path::new(item.ident.unraw().to_string());
+        Ok(Typedef::new(
+            path,
+            GenericParams::load(&item.generics)?,
+            x,
+            Cfg::append(mod_cfg, Cfg::load(&item.attrs)),
+            AnnotationSet::load(&item.attrs)?,
+            Documentation::load(&item.attrs),
+        ))
     }
 
     pub fn new(
@@ -180,10 +179,20 @@ impl Item for Typedef {
             &library.get_config().export.mangle,
         );
 
+        let aliased = match self.aliased.specialize(&mappings) {
+            Ok(ty) => ty,
+            Err::<_, Zst>(_) => { 
+                // Unlike Typedef::load, this scenario cannot be ruled out beforehand.
+                // Therefore, we can only emit warning and skip this specific monomorph
+                warn!("Cannot have a typedef alias of a zero sized type.");
+                return;
+            }
+        };
+
         let monomorph = Typedef::new(
             mangled_path,
             GenericParams::default(),
-            self.aliased.specialize(&mappings),
+            aliased,
             self.cfg.clone(),
             self.annotations.clone(),
             self.documentation.clone(),
