@@ -158,20 +158,16 @@ fn run_cbindgen(
 ///
 /// ```text
 /// //! cbindgen:test-expect-no-warnings
-///
-/// /// cbindgen:test-expect-warning-cpp=part of the warning text
 /// ```
-///
-/// `test-expect-no-warnings` is file-level (an inner doc comment at the top of
+/// This is file-level (an inner doc comment at the top of
 /// the file) and requires cbindgen's stderr to be empty for every run.
-///
-/// `test-expect-warning-<lang>` goes on an item. The suffix selects the language
+/// ```text
+/// /// cbindgen:test-expect-warning-<lang>=(part of the warning text...)
+/// ```
+/// This applies to an item. The suffix selects the language
 /// (`c`, `cpp` or `cython`), and the text must appear in cbindgen's stderr for
 /// every run in that language. Being an annotation, the text can't contain `=`,
 /// `,`, `[` or `]`.
-///
-/// cbindgen itself ignores these unknown keys, and annotations never end up in
-/// the output.
 fn check_expected_warnings(path: &Path, language: Language, stderr: &str) {
     let lang = match language {
         Language::C => "c",
