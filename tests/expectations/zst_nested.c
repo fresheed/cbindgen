@@ -27,7 +27,7 @@ typedef struct {
 
 typedef struct {
   void (*args_erased)(void);
-  void (*args_erased_with_NPO)(void);
+  void (*args_erased_with_npo)(void);
   MyOption_______c_void args_erased_with_custom_enum;
   MyWrapper_______c_void args_erased_with_custom_struct;
   const Opaque_______c_void *args_erased_with_opaque;

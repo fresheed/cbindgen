@@ -32,13 +32,14 @@ struct MyWrapper {
 template<typename T>
 struct S {
   void (*args_erased)(T arg);
-  void (*args_erased_with_NPO)(T arg);
+  void (*args_erased_with_npo)(T arg);
   MyOption<void(*)(T arg)> args_erased_with_custom_enum;
   MyWrapper<void(*)(T arg)> args_erased_with_custom_struct;
   const Opaque<void(*)(T arg)> *args_erased_with_opaque;
   void (**args_erased_behind_ptr)(T arg);
   void (*args_erased_in_array[2])(T arg);
   void (*(*args_erased_in_ret)())(T arg);
+  T arr_erased[2];
   const T (*arr_erased_behind_ptr)[2];
   const Opaque<T[2]> *arr_erased_in_opaque;
   void (*args_always_erased)();

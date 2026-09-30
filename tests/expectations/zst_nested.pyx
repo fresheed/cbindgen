@@ -25,7 +25,7 @@ cdef extern from *:
 
   ctypedef struct S_1Z:
     void (*args_erased)();
-    void (*args_erased_with_NPO)();
+    void (*args_erased_with_npo)();
     MyOption_______c_void args_erased_with_custom_enum;
     MyWrapper_______c_void args_erased_with_custom_struct;
     const Opaque_______c_void *args_erased_with_opaque;

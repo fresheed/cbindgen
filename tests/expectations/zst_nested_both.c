@@ -27,7 +27,7 @@ typedef struct MyWrapper_______c_void {
 
 typedef struct S_1Z {
   void (*args_erased)(void);
-  void (*args_erased_with_NPO)(void);
+  void (*args_erased_with_npo)(void);
   struct MyOption_______c_void args_erased_with_custom_enum;
   struct MyWrapper_______c_void args_erased_with_custom_struct;
   const struct Opaque_______c_void *args_erased_with_opaque;
