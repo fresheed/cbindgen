@@ -390,7 +390,6 @@ fn run_compile_test(
         package_version,
         generate_symfile,
     );
-    check_expected_warnings(path, language, &stderr);
     if generate_depfile {
         let depfile = depfile_content.expect("No depfile generated");
         assert!(!depfile.is_empty());
@@ -413,6 +412,7 @@ fn run_compile_test(
         } else if generated_file.exists() {
             fs::remove_file(&generated_file).unwrap();
         }
+        check_expected_warnings(path, language, &stderr);
     } else {
         if verify {
             // Compare cbindgen output to expected (existing on disk) output.
@@ -432,6 +432,9 @@ fn run_compile_test(
                     .expect("Failed to write generated symbols.");
             }
         }
+        // Checked only after the expectations are written, so that a
+        // mismatch doesn't prevent regenerating them.
+        check_expected_warnings(path, language, &stderr);
 
         cbindgen_outputs.insert(bindings_content);
 
