@@ -17,10 +17,10 @@ struct Opaque<T> {
 pub struct S<T> {
     args_erased: extern "C" fn(arg: T),
 
-    args_erased_with_NPO: Option<extern "C" fn(arg: T)>,
+    args_erased_with_npo: Option<extern "C" fn(arg: T)>,
     args_erased_with_custom_enum: MyOption<extern "C" fn(arg: T)>,
     args_erased_with_custom_struct: MyWrapper<extern "C" fn(arg: T)>,
-    args_erased_with_opaque: &Opaque<extern "C" fn(arg: T)>,
+    args_erased_with_opaque: *const Opaque<extern "C" fn(arg: T)>,
 
     args_erased_behind_ptr: *const extern "C" fn(arg: T),
     args_erased_in_array: [extern "C" fn(arg: T); 2],
