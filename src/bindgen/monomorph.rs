@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::mem;
 
-use crate::bindgen::ir::Type;
+use crate::bindgen::ir::{GenericParams, Type};
 use crate::bindgen::ir::{
     Enum, Field, GenericArgument, GenericPath, Item, OpaqueItem, Path, Struct, Typedef, Union,
     VariantBody,
@@ -213,6 +213,72 @@ impl Monomorphs {
                 })
                 .sum(),
             Type::Primitive(_) => 0,
+        }
+    }
+
+    fn lost_structure(g: &Type, m: &Type, params: &GenericParams) -> bool {
+        use crate::bindgen::ir::{Type::*, PrimitiveType};
+        match (g, m) {
+            // `g` is one of the generic parameters, so `m` here is the argument that was substituted for it.
+            // Just by itself, it might be correct; when leads to a dropped function argument or array of ZST,
+            // we detect it a level higher, so we don't reach this case.
+            // The case when it leads to a field being dropped is handled even before lost_structure is called.
+            // If the substitution itself is another generic, it should be checked on its own.
+            (Path(p), _) if params.iter().any(|gp| gp.name() == p.path()) => false,
+            // `g` is a non-parameter path such as `gp<...>`: recurse into its generic arguments.
+            (Path(gp), Path(mp)) => {
+                gp.generics()
+                    .iter()
+                    .zip(mp.generics())
+                    .any(|(g, m)| match (g, m) {
+                        (GenericArgument::Type(g), GenericArgument::Type(m)) => {
+                            Self::lost_structure(g, m, params)
+                        }
+                        // The generic argument became a ZST during specialization. This only happens when
+                        // (see `GenericArgument::specialize` and `Type::specialize`):
+                        // 1) `g` is a parameter mapped to a ZST. C++ gets `gp<void>`, whose validity
+                        //    depends on `gp`'s own instantiation which we don't check here.
+                        // 2) `g` is an array whose element type becomes a ZST (a parameter mapped to a ZST,
+                        //    or another such array). C++ gets `gp<void[N]>`, which is ill-formed.
+                        // Anything else means `specialize` changed; report it rather than panic.
+                        (GenericArgument::Type(g), GenericArgument::Zst(_)) => {
+                            match g {
+                                Path(_) => false,
+                                Array(_, _) => true,
+                                _ => {
+                                    warn!("Generic {:?} has been unexpectedly converted to a ZST. Please report a cbindgen bug", g);
+                                    true
+                                }                                
+                            }
+                        }
+                        _ => false,
+                    })
+            }
+            (Ptr { ty: gt, .. }, Ptr { ty: mt, .. }) => Self::lost_structure(gt, mt, params),
+            (Array(ge, _), Array(me, _)) => Self::lost_structure(ge, me, params),
+            (
+                FuncPtr { ret: gr, args: ga, .. },
+                FuncPtr { ret: mr, args: ma, .. },
+            ) => {                
+                ga.len() != ma.len() // Only recurse if arguments weren't dropped
+                    || Self::lost_structure(gr, mr, params)
+                    || ga
+                        .iter()
+                        .zip(ma)
+                        .any(|((_, g), (_, m))| Self::lost_structure(g, m, params))
+            }
+            // An array of ZSTs is itself a ZST, and an enclosing type may turn it into void.
+            // At the moment, it happens only with Type::Ptr and the return type of Type::FuncPtr.
+            // The former is correct in C, but C++ keeps the template and ends up with an ill-formed `void (*)[N]`.
+            // The latter is correct in C too (a ZST return becomes `void`), but the C++ template returns
+            // an array, which is ill-formed for any `T`.
+            (Array(_, _), Primitive(PrimitiveType::Void)) => true,
+            (Primitive(_), _) => false,
+            // Should be unreachable with the current `specialize`
+            _ => {
+                warn!("Unexpected specialization of {:?} into {:?}. Please report a cbindgen bug", g, m);
+                true
+            }
         }
     }
 
