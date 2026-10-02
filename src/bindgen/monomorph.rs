@@ -167,7 +167,7 @@ impl Monomorphs {
             let Some(mf) = mono else {
                 return Some(gf.name.as_str());
             };
-            Self::have_shrinked(&gf.ty, &mf.ty, params).then(|| gf.name.as_str())
+            Self::have_shrunk(&gf.ty, &mf.ty, params).then(|| gf.name.as_str())
         };
 
         let invalid: Vec<&str> = generic
@@ -186,9 +186,13 @@ impl Monomorphs {
         }
     }
     
-    fn have_shrinked(g: &Type, m: &Type, params: &GenericParams) -> bool {
+    // Checks whether specialization of `generic` into `monomorph` produced ill-formed C++ bindings.
+    // In particular, we check for ZST arrays and function arguments.
+    // This function follows the behavior of `GenericArgument::specialize` and `Type::specialize`,
+    // so it must be updated if these functions introduce other kinds of ill-formed bindings.
+    fn have_shrunk(generic: &Type, monomorph: &Type, params: &GenericParams) -> bool {
         use crate::bindgen::ir::{Type::*, PrimitiveType};
-        match (g, m) {
+        match (generic, monomorph) {
             // `g` is one of the generic parameters, so `m` here is the argument that was substituted for it.
             // Just by itself, it might be correct; when leads to a dropped function argument or array of ZST,
             // we detect it a level higher, so we don't reach this case.
@@ -200,42 +204,20 @@ impl Monomorphs {
                 gp.generics()
                     .iter()
                     .zip(mp.generics())
-                    .any(|(g, m)| match (g, m) {
-                        (GenericArgument::Type(g), GenericArgument::Type(m)) => {
-                            Self::have_shrinked(g, m, params)
-                        }
-                        // The generic argument became a ZST during specialization. This only happens when
-                        // (see `GenericArgument::specialize` and `Type::specialize`):
-                        // 1) `g` is a parameter mapped to a ZST. C++ gets `gp<void>`, whose validity
-                        //    depends on `gp`'s own instantiation which we don't check here.
-                        // 2) `g` is an array whose element type becomes a ZST (a parameter mapped to a ZST,
-                        //    or another such array). C++ gets `gp<void[N]>`, which is ill-formed.
-                        // Anything else means `specialize` changed; report it rather than panic.
-                        (GenericArgument::Type(g), GenericArgument::Zst(_)) => {
-                            match g {
-                                Path(_) => false,
-                                Array(_, _) => true,
-                                _ => {
-                                    warn!("Generic {:?} has been unexpectedly converted to a ZST. Please report a cbindgen bug", g);
-                                    true
-                                }                                
-                            }
-                        }
-                        _ => false,
-                    })
+                    .any(|(g, m)| check_gen_arg(g, m, params))
             }
-            (Ptr { ty: gt, .. }, Ptr { ty: mt, .. }) => Self::have_shrinked(gt, mt, params),
-            (Array(ge, _), Array(me, _)) => Self::have_shrinked(ge, me, params),
+            (Ptr { ty: gt, .. }, Ptr { ty: mt, .. }) => Self::have_shrunk(gt, mt, params),
+            (Array(ge, _), Array(me, _)) => Self::have_shrunk(ge, me, params),
             (
                 FuncPtr { ret: gr, args: ga, .. },
                 FuncPtr { ret: mr, args: ma, .. },
             ) => {                
                 ga.len() != ma.len() // Only recurse if arguments weren't dropped
-                    || Self::have_shrinked(gr, mr, params)
+                    || Self::have_shrunk(gr, mr, params)
                     || ga
                         .iter()
                         .zip(ma)
-                        .any(|((_, g), (_, m))| Self::have_shrinked(g, m, params))
+                        .any(|((_, g), (_, m))| Self::have_shrunk(g, m, params))
             }
             // An array of ZSTs is itself a ZST, and an enclosing type may turn it into void.
             // At the moment, it happens only with Type::Ptr and the return type of Type::FuncPtr.
@@ -246,7 +228,7 @@ impl Monomorphs {
             (Primitive(_), _) => false,
             // Should be unreachable with the current `specialize`
             _ => {
-                warn!("Unexpected specialization of {:?} into {:?}. Please report a cbindgen bug", g, m);
+                warn!("Unexpected specialization of {:?} into {:?}. Bindings might be ill-formed. Please report a cbindgen bug", generic, monomorph);
                 true
             }
         }
@@ -261,17 +243,11 @@ impl Monomorphs {
     }
 
     pub fn drain_structs(&mut self) -> Vec<Struct> {
-        mem::take(&mut self.structs)
-            .into_iter()
-            .map(|(_, monomorph)| monomorph)
-            .collect()
+        Self::drain_snd(&mut self.structs)
     }
 
-    pub fn drain_unions(&mut self) -> Vec<Union> {
-        mem::take(&mut self.unions)
-            .into_iter()
-            .map(|(_, monomorph)| monomorph)
-            .collect()
+    pub fn drain_unions(&mut self) -> Vec<Union> {       
+        Self::drain_snd(&mut self.unions)
     }
 
     pub fn drain_typedefs(&mut self) -> Vec<Typedef> {
@@ -279,9 +255,40 @@ impl Monomorphs {
     }
 
     pub fn drain_enums(&mut self) -> Vec<Enum> {
-        mem::take(&mut self.enums)
+        Self::drain_snd(&mut self.enums)
+    }
+
+    fn drain_snd<T, U>(v: &mut Vec<(T, U)>) -> Vec<U> {
+        mem::take(v)
             .into_iter()
-            .map(|(_, monomorph)| monomorph)
+            .map(|(_, u)| u)
             .collect()
+    }
+}
+
+fn check_gen_arg(g: &GenericArgument, m: &GenericArgument, params: &GenericParams) -> bool {
+    use crate::bindgen::ir::Type::*;
+    match (g, m) {
+        (GenericArgument::Type(g), GenericArgument::Type(m)) => {
+            Monomorphs::have_shrunk(g, m, params)
+        }
+        // The generic argument became a ZST during specialization. This only happens when
+        // (see `GenericArgument::specialize` and `Type::specialize`):
+        // 1) `g` is a parameter mapped to a ZST. C++ gets `gp<void>`, whose validity
+        //    depends on `gp`'s own instantiation which we don't check here.
+        // 2) `g` is an array whose element type becomes a ZST (a parameter mapped to a ZST,
+        //    or another such array). C++ gets `gp<void[N]>`, which is ill-formed.
+        // Anything else means `specialize` changed; report it rather than panic.
+        (GenericArgument::Type(g), GenericArgument::Zst(_)) => {
+            match g {
+                Path(_) => false,
+                Array(_, _) => true,
+                _ => {
+                    warn!("Generic {:?} has been unexpectedly converted to a ZST. Bindings might be ill-formed. Please report a cbindgen bug", g);
+                    true
+                }                                
+            }
+        }
+        _ => false,
     }
 }
