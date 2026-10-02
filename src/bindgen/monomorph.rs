@@ -133,10 +133,10 @@ impl Monomorphs {
             if g.is_enum_variant_body {
                 continue;
             }
-            Self::warn_missing(g.path.name(), m.path.name(), &g.fields, &m.fields);
+            Self::warn_missing(g.path.name(), m.path.name(), &g.fields, &m.fields, g.generic_params());
         }
         for (g, m) in &self.unions {
-            Self::warn_missing(g.path.name(), m.path.name(), &g.fields, &m.fields);
+            Self::warn_missing(g.path.name(), m.path.name(), &g.fields, &m.fields, g.generic_params());
         }
         for (g, m) in &self.enums {
             for (gv, mv) in g.variants.iter().zip(&m.variants) {
@@ -148,6 +148,7 @@ impl Monomorphs {
                         &format!("{}::{}", m.path, mv.name),
                         &gb.fields,
                         &mb.fields,
+                        gb.generic_params()
                     );
                 }
             }
@@ -159,17 +160,14 @@ impl Monomorphs {
         monomorph_name: &str,
         generic: &'a[Field], // lifetime needed to make check_in_mono work
         monomorph: &[Field],
+        params: &GenericParams,
     ) {
         let check_in_mono = |gf: &'a Field| {
             let mono = monomorph.iter().find(|mf| mf.name == gf.name);
             let Some(mf) = mono else {
                 return Some(gf.name.as_str());
             };
-            if Self::cnt_args_arrays(&gf.ty) != Self::cnt_args_arrays(&mf.ty) {
-                return Some(gf.name.as_str())
-            } else {
-                return None
-            }
+            Self::have_shrinked(&gf.ty, &mf.ty, params).then(|| gf.name.as_str())
         };
 
         let invalid: Vec<&str> = generic
@@ -188,35 +186,7 @@ impl Monomorphs {
         }
     }
     
-    // Specialization might lead to arrays of ZST and ZST function arguments, both of which are not valid in C++.
-    // To check if it happened, we can recursively count both of the above for generic and its monomorph.    
-    fn cnt_args_arrays(ty: &Type) -> usize {
-        match ty {
-            Type::Ptr { ty, .. } => Self::cnt_args_arrays(ty),
-            // Arrays of 1-ZST are treated as 1-ZST themselves (see ty.rs).
-            // Afterwards, they're not preserved:
-            // they're just erased / replaced with pointer / replaced with general "ZST argument to opaque generic".
-            // So for comparison, it's valid to just count the nested Array entries.
-            Type::Array(ty, _) => 1 + Self::cnt_args_arrays(ty),
-            Type::FuncPtr { ret, args, .. } => {
-                // ZST arguments are always dropped, so we can just recursively count them for comparison
-                args.len() 
-                + Self::cnt_args_arrays(ret) 
-                + args.iter().map(|(_, t)| Self::cnt_args_arrays(t)).sum::<usize>()
-            }
-            Type::Path(path) => path
-                .generics()
-                .iter()
-                .map(|g| match g {
-                    GenericArgument::Type(t) => Self::cnt_args_arrays(t),
-                    _ => 0,
-                })
-                .sum(),
-            Type::Primitive(_) => 0,
-        }
-    }
-
-    fn lost_structure(g: &Type, m: &Type, params: &GenericParams) -> bool {
+    fn have_shrinked(g: &Type, m: &Type, params: &GenericParams) -> bool {
         use crate::bindgen::ir::{Type::*, PrimitiveType};
         match (g, m) {
             // `g` is one of the generic parameters, so `m` here is the argument that was substituted for it.
@@ -232,7 +202,7 @@ impl Monomorphs {
                     .zip(mp.generics())
                     .any(|(g, m)| match (g, m) {
                         (GenericArgument::Type(g), GenericArgument::Type(m)) => {
-                            Self::lost_structure(g, m, params)
+                            Self::have_shrinked(g, m, params)
                         }
                         // The generic argument became a ZST during specialization. This only happens when
                         // (see `GenericArgument::specialize` and `Type::specialize`):
@@ -254,18 +224,18 @@ impl Monomorphs {
                         _ => false,
                     })
             }
-            (Ptr { ty: gt, .. }, Ptr { ty: mt, .. }) => Self::lost_structure(gt, mt, params),
-            (Array(ge, _), Array(me, _)) => Self::lost_structure(ge, me, params),
+            (Ptr { ty: gt, .. }, Ptr { ty: mt, .. }) => Self::have_shrinked(gt, mt, params),
+            (Array(ge, _), Array(me, _)) => Self::have_shrinked(ge, me, params),
             (
                 FuncPtr { ret: gr, args: ga, .. },
                 FuncPtr { ret: mr, args: ma, .. },
             ) => {                
                 ga.len() != ma.len() // Only recurse if arguments weren't dropped
-                    || Self::lost_structure(gr, mr, params)
+                    || Self::have_shrinked(gr, mr, params)
                     || ga
                         .iter()
                         .zip(ma)
-                        .any(|((_, g), (_, m))| Self::lost_structure(g, m, params))
+                        .any(|((_, g), (_, m))| Self::have_shrinked(g, m, params))
             }
             // An array of ZSTs is itself a ZST, and an enclosing type may turn it into void.
             // At the moment, it happens only with Type::Ptr and the return type of Type::FuncPtr.
