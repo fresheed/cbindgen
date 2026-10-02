@@ -39,4 +39,15 @@ cdef extern from *:
     const Opaque_1Z *zst_in_opaque;
     void (*f_returns_zst)(uint32_t arg);
 
-  void use_S(S_1Z arg);
+  ctypedef struct S2_1Z___________u8__________4:
+    void (*f)(uint8_t[4]);
+    uint8_t x[4];
+
+  ctypedef struct Inner_1Z:
+    const void *p;
+
+  ctypedef struct Outer_1Z:
+    Inner_1Z plain;
+    Inner_1Z arr;
+
+  void use_S(S_1Z arg1, S2_1Z___________u8__________4 arg2, Outer_1Z arg3);

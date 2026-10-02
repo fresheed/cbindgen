@@ -42,4 +42,18 @@ struct S_1Z {
   void (*f_returns_zst)(uint32_t arg);
 };
 
-void use_S(struct S_1Z arg);
+struct S2_1Z___________u8__________4 {
+  void (*f)(uint8_t[4]);
+  uint8_t x[4];
+};
+
+struct Inner_1Z {
+  const void *p;
+};
+
+struct Outer_1Z {
+  struct Inner_1Z plain;
+  struct Inner_1Z arr;
+};
+
+void use_S(struct S_1Z arg1, struct S2_1Z___________u8__________4 arg2, struct Outer_1Z arg3);

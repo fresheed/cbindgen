@@ -48,8 +48,25 @@ struct S {
   T (*f_returns_zst)(uint32_t arg);
 };
 
+template<typename T, typename U>
+struct S2 {
+  void (*f)(T, U);
+  U x;
+};
+
+template<typename U>
+struct Inner {
+  const U *p;
+};
+
+template<typename T>
+struct Outer {
+  Inner<T> plain;
+  Inner<T[2]> arr;
+};
+
 extern "C" {
 
-void use_S(S<void> arg);
+void use_S(S<void> arg1, S2<void, uint8_t[4]> arg2, Outer<void> arg3);
 
 }  // extern "C"

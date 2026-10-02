@@ -42,11 +42,25 @@ typedef struct S_1Z {
   void (*f_returns_zst)(uint32_t arg);
 } S_1Z;
 
+typedef struct S2_1Z___________u8__________4 {
+  void (*f)(uint8_t[4]);
+  uint8_t x[4];
+} S2_1Z___________u8__________4;
+
+typedef struct Inner_1Z {
+  const void *p;
+} Inner_1Z;
+
+typedef struct Outer_1Z {
+  struct Inner_1Z plain;
+  struct Inner_1Z arr;
+} Outer_1Z;
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
 
-void use_S(struct S_1Z arg);
+void use_S(struct S_1Z arg1, struct S2_1Z___________u8__________4 arg2, struct Outer_1Z arg3);
 
 #ifdef __cplusplus
 }  // extern "C"
