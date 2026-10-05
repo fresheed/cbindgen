@@ -361,7 +361,7 @@ impl Type {
 
                 let converted = match converted {
                     Ok(converted) => converted,
-                    Err(_) => Type::Primitive(PrimitiveType::Void),
+                    Err::<_, Zst>(_) => Type::Primitive(PrimitiveType::Void),
                 };
 
                 // TODO(emilio): we could make these use is_ref: true.
@@ -378,7 +378,7 @@ impl Type {
 
                 let converted = match converted {
                     Ok(converted) => converted,
-                    Err(_) => Type::Primitive(PrimitiveType::Void),
+                    Err::<_, Zst>(_) => Type::Primitive(PrimitiveType::Void),
                 };
 
                 let is_const = matches!(pointer.mutability, syn::PointerMutability::Const(_));
@@ -412,7 +412,7 @@ impl Type {
 
                 let converted = match converted {
                     Ok(converted) => converted,
-                    Err(_) => return Err("Cannot have an array of zero sized types.".to_owned()),
+                    Err::<_, Zst>(_) => return Err("Cannot have an array of zero sized types.".to_owned()),
                 };
 
                 let len = ConstExpr::load(len)?;

@@ -15,12 +15,12 @@ use crate::bindgen::library::Library;
 #[derive(Default, Clone, Debug)]
 pub struct Monomorphs {
     replacements: HashMap<GenericPath, Path>,
-    opaques: Vec<OpaqueItem>,
-    typedefs: Vec<Typedef>,
+    opaques: Vec<OpaqueItem>,    
     // Pairs of (generic item, its monomorph) needed for subsequent C++ validity check
     structs: Vec<(Struct, Struct)>,
     unions: Vec<(Union, Union)>,
     enums: Vec<(Enum, Enum)>,
+    typedefs: Vec<(Typedef, Typedef)>,
 }
 
 impl Monomorphs {
@@ -111,19 +111,22 @@ impl Monomorphs {
         monomorph: Typedef,
         arguments: Vec<GenericArgument>,
     ) {
-        let replacement_path = GenericPath::new(generic.path.clone(), arguments);
-
-        debug_assert!(generic.is_generic());
-        debug_assert!(!self.contains(&replacement_path));
-
-        self.replacements
-            .insert(replacement_path, monomorph.path.clone());
-
+        self.register_typedef(generic, &monomorph.path, arguments);
         monomorph.add_monomorphs(library, self);
-
-        self.typedefs.push(monomorph);
+        self.typedefs.push((generic.clone(), monomorph));
     }
 
+    // Only registers a typedef instantiation for name mangling purposes
+    pub fn register_typedef(&mut self, generic: &Typedef, monomorph_path: &Path, arguments: Vec<GenericArgument>) {
+        let replacement_path = GenericPath::new(generic.path.clone(), arguments);
+    
+        debug_assert!(generic.is_generic());
+        debug_assert!(!self.contains(&replacement_path));
+    
+        self.replacements
+            .insert(replacement_path, monomorph_path.clone());
+    }
+    
     /// C++ bindings keep generic templates and write zero-sized generic arguments as `void`. 
     /// Instantiations that lose fields or function arguments due to this
     /// can't be represented correctly, so warn about them.
@@ -151,6 +154,15 @@ impl Monomorphs {
                         gb.generic_params()
                     );
                 }
+            }
+        }
+        for (g, m) in &self.typedefs {
+            if Self::have_shrunk(&g.aliased, &m.aliased, g.generic_params()) {
+                warn!(
+                    "C++ bindings for {} (instantiated as {}) may be ill-formed: \
+                    the aliased type contains zero-sized arguments or arrays",
+                    g.path.name(), m.path.name()
+                );
             }
         }
     }
@@ -251,7 +263,7 @@ impl Monomorphs {
     }
 
     pub fn drain_typedefs(&mut self) -> Vec<Typedef> {
-        mem::take(&mut self.typedefs)
+        Self::drain_snd(&mut self.typedefs)
     }
 
     pub fn drain_enums(&mut self) -> Vec<Enum> {

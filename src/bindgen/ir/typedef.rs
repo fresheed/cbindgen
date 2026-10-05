@@ -10,7 +10,7 @@ use crate::bindgen::config::Config;
 use crate::bindgen::declarationtyperesolver::DeclarationTypeResolver;
 use crate::bindgen::dependencies::Dependencies;
 use crate::bindgen::ir::{
-    AnnotationSet, Cfg, Documentation, Field, GenericArgument, GenericParams, Item, ItemContainer, Path, Struct, Type, Zst,
+    AnnotationSet, Cfg, Documentation, Field, GenericArgument, GenericParams, Item, ItemContainer, Path, PrimitiveType, Struct, Type, Zst,
 };
 use crate::bindgen::library::Library;
 use crate::bindgen::mangle;
@@ -179,25 +179,27 @@ impl Item for Typedef {
             &library.get_config().export.mangle,
         );
 
-        let aliased = match self.aliased.specialize(&mappings) {
-            Ok(ty) => ty,
-            Err::<_, Zst>(_) => { 
-                // Unlike Typedef::load, this scenario cannot be ruled out beforehand.
-                // Therefore, we can only emit warning and skip this specific monomorph
-                warn!("Cannot have a typedef alias of a zero sized type.");
-                return;
+        // Like Typedef::load, we don't emit ZST typedefs
+        // (even though `typedef void X` is valid C/C++).
+        // However, here we don't emit an opaque struct.
+        // Name mangling has to still work in C,
+        // so we register the mangled path
+        match self.aliased.specialize(&mappings) {
+            Ok(ty) => {
+                let monomorph = Typedef::new(
+                    mangled_path.clone(),
+                    GenericParams::default(),
+                    ty,
+                    self.cfg.clone(),
+                    self.annotations.clone(),
+                    self.documentation.clone(),
+                );
+                out.insert_typedef(library, self, monomorph, generic_values.to_owned());
+            },
+            Err::<_, Zst>(_) => {
+                warn!("Skipping a typedef alias {} of a zero sized type (instantiation of {})", mangled_path.name(), self.path.name());
+                out.register_typedef(self, &mangled_path, generic_values.to_owned());                
             }
-        };
-
-        let monomorph = Typedef::new(
-            mangled_path,
-            GenericParams::default(),
-            aliased,
-            self.cfg.clone(),
-            self.annotations.clone(),
-            self.documentation.clone(),
-        );
-
-        out.insert_typedef(library, self, monomorph, generic_values.to_owned());
+        }
     }
 }
