@@ -319,10 +319,7 @@ fn main() {
     }
 
     // Initialize logging
-    if let Ok(log_file) = env::var("CBINDGEN_LOG_FILE") {
-        let tag = env::var("CBINDGEN_LOG_TAG").unwrap_or_default();
-        logging::FileLogger::init(&log_file, tag).unwrap();
-    } else if matches.get_flag("quiet") {
+    if matches.get_flag("quiet") {
         logging::ErrorLogger::init().unwrap();
     } else {
         match matches.get_count("v") {
