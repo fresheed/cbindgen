@@ -15,8 +15,7 @@ use crate::bindgen::cargo::{Cargo, PackageRef};
 use crate::bindgen::config::{Config, ParseConfig};
 use crate::bindgen::error::Error;
 use crate::bindgen::ir::{
-    AnnotationSet, AnnotationValue, Cfg, Constant, Documentation, Enum, Function, GenericParam,
-    GenericParams, ItemMap, OpaqueItem, Path, Static, Struct, Type, Typedef, Union,
+    AnnotationSet, AnnotationValue, Cfg, Constant, Documentation, Enum, Function, GenericParam, GenericParams, ItemMap, OpaqueItem, Path, Static, Struct, Type, Typedef, Union, Zst,
 };
 use crate::bindgen::utilities::{SynAbiHelpers, SynAttributeHelpers, SynItemHelpers};
 
@@ -776,8 +775,8 @@ impl Parse {
         };
 
         let ty = match ty {
-            Some(ty) => ty,
-            None => return,
+            Ok(ty) => ty,
+            Err::<_, Zst>(_) => return,
         };
 
         let impl_path = match ty.get_root_path() {
