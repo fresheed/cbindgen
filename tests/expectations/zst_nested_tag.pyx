@@ -34,10 +34,6 @@ cdef extern from *:
     void (*(*args_erased_in_ret)())();
     const void *arr_erased_behind_ptr;
     const Opaque_1Z *arr_erased_in_opaque;
-    void (*args_always_erased)();
-    const void *zst_behind_ptr;
-    const Opaque_1Z *zst_in_opaque;
-    void (*f_returns_zst)(uint32_t arg);
 
   cdef struct S2_1Z___________u8__________4:
     void (*f)(uint8_t[4]);

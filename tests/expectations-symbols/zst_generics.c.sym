@@ -1,7 +1,4 @@
 {
-option_u32;
-option_unit;
-result_zsts;
 use_struct;
 use_union;
 use_enum;
@@ -9,8 +6,4 @@ use_cg;
 use_two;
 use_nested;
 use_d2;
-my_test;
-f;
-returns_either;
-CResultNoneAPIError_free;
 };

@@ -42,10 +42,6 @@ struct S {
   T arr_erased[2];
   const T (*arr_erased_behind_ptr)[2];
   const Opaque<T[2]> *arr_erased_in_opaque;
-  void (*args_always_erased)();
-  const T *zst_behind_ptr;
-  const Opaque<T> *zst_in_opaque;
-  T (*f_returns_zst)(uint32_t arg);
 };
 
 template<typename T, typename U>

@@ -29,12 +29,7 @@ pub struct S<T> {
     arr_erased: [T; 2],
     arr_erased_behind_ptr: *const [T; 2],
     arr_erased_in_opaque: *const Opaque<[T; 2]>,
-        
-    // no warnings
-    args_always_erased: extern "C" fn(arg: ()), // does not depent on T
-    zst_behind_ptr: *const T, // *void is valid
-    zst_in_opaque: *const Opaque<T>, // *Opaque<void> is valid
-    f_returns_zst: extern "C" fn(arg: u32) -> T, // void return is valid
+    // positions where a ZST is valid are tested in zst_valid.rs
 }
 
 #[repr(C)]
