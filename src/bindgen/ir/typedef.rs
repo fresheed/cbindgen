@@ -10,7 +10,8 @@ use crate::bindgen::config::Config;
 use crate::bindgen::declarationtyperesolver::DeclarationTypeResolver;
 use crate::bindgen::dependencies::Dependencies;
 use crate::bindgen::ir::{
-    AnnotationSet, Cfg, Documentation, Field, GenericArgument, GenericParams, Item, ItemContainer, Path, Struct, Type, Zst,
+    AnnotationSet, Cfg, Documentation, Field, GenericArgument, GenericParams, Item, ItemContainer,
+    Path, Struct, Type, Zst,
 };
 use crate::bindgen::library::Library;
 use crate::bindgen::mangle;
@@ -32,7 +33,9 @@ impl Typedef {
     pub fn load(item: &syn::ItemType, mod_cfg: Option<&Cfg>) -> Result<Typedef, String> {
         let x = match Type::load(&item.ty)? {
             Ok(ty) => ty,
-            Err::<_, Zst>(_) => return Err("Cannot have a typedef of a zero sized type.".to_owned()),
+            Err::<_, Zst>(_) => {
+                return Err("Cannot have a typedef of a zero sized type.".to_owned())
+            }
         };
         let path = Path::new(item.ident.unraw().to_string());
         Ok(Typedef::new(
@@ -195,10 +198,14 @@ impl Item for Typedef {
                     self.documentation.clone(),
                 );
                 out.insert_typedef(library, self, monomorph, generic_values.to_owned());
-            },
+            }
             Err::<_, Zst>(_) => {
-                warn!("Skipping a typedef alias {} of a zero sized type (instantiation of {})", mangled_path.name(), self.path.name());
-                out.register_typedef(self, &mangled_path, generic_values.to_owned());                
+                warn!(
+                    "Skipping a typedef alias {} of a zero sized type (instantiation of {})",
+                    mangled_path.name(),
+                    self.path.name()
+                );
+                out.register_typedef(self, &mangled_path, generic_values.to_owned());
             }
         }
     }

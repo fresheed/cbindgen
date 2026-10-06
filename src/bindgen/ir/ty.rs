@@ -412,7 +412,9 @@ impl Type {
 
                 let converted = match converted {
                     Ok(converted) => converted,
-                    Err::<_, Zst>(_) => return Err("Cannot have an array of zero sized types.".to_owned()),
+                    Err::<_, Zst>(_) => {
+                        return Err("Cannot have an array of zero sized types.".to_owned())
+                    }
                 };
 
                 let len = ConstExpr::load(len)?;
@@ -422,8 +424,7 @@ impl Type {
                 let mut wildcard_counter = 0;
                 let mut args = function.inputs.iter().try_skip_map(|x| {
                     Type::load(&x.ty).map(|opt_ty| {
-                        opt_ty.ok()
-                            .map(|ty| {
+                        opt_ty.ok().map(|ty| {
                             (
                                 x.name.as_ref().map(|(ref ident, _)| {
                                     if ident == "_" {
@@ -454,7 +455,8 @@ impl Type {
                 }
             }
             syn::Type::Tuple(ref tuple) => {
-                if tuple.elems.is_empty() { // unit type
+                if tuple.elems.is_empty() {
+                    // unit type
                     return Ok(Err(Zst::Zst1));
                 }
                 return Err("Tuples are not supported types.".to_owned());
@@ -639,22 +641,24 @@ impl Type {
                 is_nullable,
                 is_ref,
             } => {
-                let inner = ty.specialize(mappings).unwrap_or(Type::Primitive(PrimitiveType::Void));
+                let inner = ty
+                    .specialize(mappings)
+                    .unwrap_or(Type::Primitive(PrimitiveType::Void));
                 Ok(Type::Ptr {
                     ty: Box::new(inner),
                     is_const,
                     is_nullable,
-                    is_ref
+                    is_ref,
                 })
-            },
+            }
             Type::Path(ref generic_path) => {
                 for &(param, value) in mappings {
                     if generic_path.path() == param {
-                      match *value {
-                          GenericArgument::Type(ref ty) => return Ok(ty.clone()),
-                          GenericArgument::Zst(zst) => return Err(zst),
-                          GenericArgument::Const(_) => {}
-                      }
+                        match *value {
+                            GenericArgument::Type(ref ty) => return Ok(ty.clone()),
+                            GenericArgument::Zst(zst) => return Err(zst),
+                            GenericArgument::Const(_) => {}
+                        }
                     }
                 }
 
@@ -671,34 +675,37 @@ impl Type {
             Type::Primitive(ref primitive) => Ok(Type::Primitive(primitive.clone())),
             Type::Array(ref ty, ref constant) => {
                 // An array of 1-ZSTs is itself a 1-ZST, so propagate it.
-                // This doesn't match the behavior of Type::load (which explicitly prohibits it), 
+                // This doesn't match the behavior of Type::load (which explicitly prohibits it),
                 // but we cannot rule out monomorphizations ahead of time,
                 // so we just proceed with ZST here
                 let inner = ty.specialize(mappings)?;
                 Ok(Type::Array(Box::new(inner), constant.specialize(mappings)))
-            },
+            }
             Type::FuncPtr {
                 ref ret,
                 ref args,
                 is_nullable,
                 never_return,
             } => {
-                let spec_ret = ret.specialize(mappings).unwrap_or(Type::Primitive(PrimitiveType::Void));                
+                let spec_ret = ret
+                    .specialize(mappings)
+                    .unwrap_or(Type::Primitive(PrimitiveType::Void));
                 let spec_args = args
-                        .iter()
-                        .cloned()
-                        .filter_map(|(name, ty)| 
-                            ty.specialize(mappings)
+                    .iter()
+                    .cloned()
+                    .filter_map(|(name, ty)| {
+                        ty.specialize(mappings)
                             .ok() // ZST arguments are dropped here
-                            .map(|sty| (name, sty)))
-                        .collect();
+                            .map(|sty| (name, sty))
+                    })
+                    .collect();
                 Ok(Type::FuncPtr {
                     ret: Box::new(spec_ret),
                     args: spec_args,
                     is_nullable,
                     never_return,
                 })
-            },
+            }
         }
     }
 

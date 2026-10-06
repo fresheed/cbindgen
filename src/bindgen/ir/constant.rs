@@ -14,7 +14,8 @@ use crate::bindgen::config::{Config, Language};
 use crate::bindgen::declarationtyperesolver::DeclarationTypeResolver;
 use crate::bindgen::dependencies::Dependencies;
 use crate::bindgen::ir::{
-    AnnotationSet, Cfg, ConditionWrite, ConstExpr, Documentation, GenericParams, IntKind, Item, ItemContainer, Path, PrimitiveType, Struct, ToCondition, Type, Zst,
+    AnnotationSet, Cfg, ConditionWrite, ConstExpr, Documentation, GenericParams, IntKind, Item,
+    ItemContainer, Path, PrimitiveType, Struct, ToCondition, Type, Zst,
 };
 use crate::bindgen::language_backend::LanguageBackend;
 use crate::bindgen::library::Library;

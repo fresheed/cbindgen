@@ -158,8 +158,8 @@ impl GenericParams {
                             write!(out, " = ");
                             cdecl::write_type(language_backend, out, ty, config);
                         } else if let Some(GenericArgument::Zst(Zst::Zst1)) = item.default {
-                            write!(out, " = void");                            
-                        } else if with_default  {
+                            write!(out, " = void");
+                        } else if with_default {
                             write!(out, " = void");
                         }
                     }
@@ -223,7 +223,8 @@ impl GenericArgument {
                         }
                     }
                 }
-                ty.specialize(mappings).map_or_else(GenericArgument::Zst, GenericArgument::Type)
+                ty.specialize(mappings)
+                    .map_or_else(GenericArgument::Zst, GenericArgument::Type)
             }
             GenericArgument::Const(ref expr) => GenericArgument::Const(expr.clone()),
             GenericArgument::Zst(ref zst) => GenericArgument::Zst(zst.clone()),
@@ -234,7 +235,7 @@ impl GenericArgument {
         match *self {
             GenericArgument::Type(ref mut ty) => ty.rename_for_config(config, generic_params),
             GenericArgument::Const(ref mut expr) => expr.rename_for_config(config, generic_params),
-            GenericArgument::Zst(_) => {},
+            GenericArgument::Zst(_) => {}
         }
     }
 }
@@ -329,8 +330,9 @@ impl GenericPath {
                 ref args,
                 ..
             }) => args.iter().try_skip_map(|x| match *x {
-                syn::GenericArgument::Type(ref x) => Ok(Some(Type::load(x)?
-                    .map_or_else(GenericArgument::Zst, GenericArgument::Type))),
+                syn::GenericArgument::Type(ref x) => Ok(Some(
+                    Type::load(x)?.map_or_else(GenericArgument::Zst, GenericArgument::Type),
+                )),
                 syn::GenericArgument::Lifetime(_) => Ok(None),
                 syn::GenericArgument::Const(ref x) => {
                     Ok(Some(GenericArgument::Const(ConstExpr::load(x)?)))

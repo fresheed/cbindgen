@@ -25,7 +25,7 @@ impl Field {
 
     pub fn load(field: &syn::Field, self_path: &Path) -> Result<Option<Field>, String> {
         // So far, the only reason to omit a field is because its type is 1-ZST.
-        // Both structs and enums will drop it. 
+        // Both structs and enums will drop it.
         // Therefore, we don't need to propagate the reason for omitting, and Option suffices.
         // TODO: is it sufficient in general?
         let mut ty = match Type::load(&field.ty)? {

@@ -29,7 +29,9 @@ impl Static {
     ) -> Result<Static, String> {
         let ty = match Type::load(&item.ty)? {
             Ok(ty) => ty,
-            Err::<_, Zst>(_) => return Err("Cannot have a zero sized static definition.".to_owned()),
+            Err::<_, Zst>(_) => {
+                return Err("Cannot have a zero sized static definition.".to_owned())
+            }
         };
         Ok(Static::new(
             path,

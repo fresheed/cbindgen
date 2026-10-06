@@ -8,7 +8,8 @@ use crate::bindgen::config::{Config, LayoutConfig};
 use crate::bindgen::declarationtyperesolver::DeclarationTypeResolver;
 use crate::bindgen::dependencies::Dependencies;
 use crate::bindgen::ir::{
-    AnnotationSet, Cfg, Documentation, Field, GenericArgument, GenericParams, Item, ItemContainer, Path, Repr, ReprAlign, ReprStyle,
+    AnnotationSet, Cfg, Documentation, Field, GenericArgument, GenericParams, Item, ItemContainer,
+    Path, Repr, ReprAlign, ReprStyle,
 };
 use crate::bindgen::library::Library;
 use crate::bindgen::mangle;
@@ -232,15 +233,18 @@ impl Item for Union {
             generic_values,
             &library.get_config().export.mangle,
         );
-        
+
         let monomorph = Union::new(
             mangled_path,
             GenericParams::default(),
             self.fields
                 .iter()
-                .filter_map(|field| field.ty.specialize(&mappings)
-                    .ok()
-                    .map(|ty| { Field { ty, ..field.clone() }}))
+                .filter_map(|field| {
+                    field.ty.specialize(&mappings).ok().map(|ty| Field {
+                        ty,
+                        ..field.clone()
+                    })
+                })
                 .collect(),
             self.alignment,
             self.tuple_union,

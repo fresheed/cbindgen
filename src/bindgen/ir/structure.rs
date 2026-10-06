@@ -10,7 +10,8 @@ use crate::bindgen::config::{Config, Language, LayoutConfig};
 use crate::bindgen::declarationtyperesolver::DeclarationTypeResolver;
 use crate::bindgen::dependencies::Dependencies;
 use crate::bindgen::ir::{
-    AnnotationSet, Cfg, Constant, Documentation, Field, GenericArgument, GenericParams, Item, ItemContainer, Path, Repr, ReprAlign, ReprStyle, Type, Typedef, Zst,
+    AnnotationSet, Cfg, Constant, Documentation, Field, GenericArgument, GenericParams, Item,
+    ItemContainer, Path, Repr, ReprAlign, ReprStyle, Type, Typedef, Zst,
 };
 use crate::bindgen::library::Library;
 use crate::bindgen::mangle;
@@ -202,14 +203,21 @@ impl Struct {
         config: &Config,
     ) -> Self {
         let mangled_path = mangle::mangle_path(&self.path, generic_values, &config.export.mangle);
-        let mk_field = |field: &Field, ty: Type| {
-            Field { ty, ..field.clone() }
+        let mk_field = |field: &Field, ty: Type| Field {
+            ty,
+            ..field.clone()
         };
-        let fields = self.fields
-                .iter()
-                .filter_map(|field| field.ty.specialize(mappings)
-                    .ok().map(|ty| mk_field(field, ty)))
-                .collect();
+        let fields = self
+            .fields
+            .iter()
+            .filter_map(|field| {
+                field
+                    .ty
+                    .specialize(mappings)
+                    .ok()
+                    .map(|ty| mk_field(field, ty))
+            })
+            .collect();
         Struct::new(
             mangled_path,
             GenericParams::default(),

@@ -5,17 +5,17 @@
 use std::collections::HashMap;
 use std::mem;
 
-use crate::bindgen::ir::{GenericParams, Type};
 use crate::bindgen::ir::{
     Enum, Field, GenericArgument, GenericPath, Item, OpaqueItem, Path, Struct, Typedef, Union,
     VariantBody,
 };
+use crate::bindgen::ir::{GenericParams, Type};
 use crate::bindgen::library::Library;
 
 #[derive(Default, Clone, Debug)]
 pub struct Monomorphs {
     replacements: HashMap<GenericPath, Path>,
-    opaques: Vec<OpaqueItem>,    
+    opaques: Vec<OpaqueItem>,
     // Pairs of (generic item, its monomorph) needed for subsequent C++ validity check
     structs: Vec<(Struct, Struct)>,
     unions: Vec<(Union, Union)>,
@@ -117,17 +117,22 @@ impl Monomorphs {
     }
 
     // Only registers a typedef instantiation for name mangling purposes
-    pub fn register_typedef(&mut self, generic: &Typedef, monomorph_path: &Path, arguments: Vec<GenericArgument>) {
+    pub fn register_typedef(
+        &mut self,
+        generic: &Typedef,
+        monomorph_path: &Path,
+        arguments: Vec<GenericArgument>,
+    ) {
         let replacement_path = GenericPath::new(generic.path.clone(), arguments);
-    
+
         debug_assert!(generic.is_generic());
         debug_assert!(!self.contains(&replacement_path));
-    
+
         self.replacements
             .insert(replacement_path, monomorph_path.clone());
     }
-    
-    /// C++ bindings keep generic templates and write zero-sized generic arguments as `void`. 
+
+    /// C++ bindings keep generic templates and write zero-sized generic arguments as `void`.
     /// Instantiations that lose fields or function arguments due to this
     /// can't be represented correctly, so warn about them.
     pub fn warn_zst_instantiations(&self) {
@@ -136,10 +141,22 @@ impl Monomorphs {
             if g.is_enum_variant_body {
                 continue;
             }
-            Self::warn_missing(g.path.name(), m.path.name(), &g.fields, &m.fields, g.generic_params());
+            Self::warn_missing(
+                g.path.name(),
+                m.path.name(),
+                &g.fields,
+                &m.fields,
+                g.generic_params(),
+            );
         }
         for (g, m) in &self.unions {
-            Self::warn_missing(g.path.name(), m.path.name(), &g.fields, &m.fields, g.generic_params());
+            Self::warn_missing(
+                g.path.name(),
+                m.path.name(),
+                &g.fields,
+                &m.fields,
+                g.generic_params(),
+            );
         }
         for (g, m) in &self.enums {
             for (gv, mv) in g.variants.iter().zip(&m.variants) {
@@ -151,7 +168,7 @@ impl Monomorphs {
                         &format!("{}::{}", m.path, mv.name),
                         &gb.fields,
                         &mb.fields,
-                        gb.generic_params()
+                        gb.generic_params(),
                     );
                 }
             }
@@ -161,7 +178,8 @@ impl Monomorphs {
                 warn!(
                     "C++ bindings for {} (instantiated as {}) may be ill-formed: \
                     the aliased type contains zero-sized arguments or arrays",
-                    g.path.name(), m.path.name()
+                    g.path.name(),
+                    m.path.name()
                 );
             }
         }
@@ -170,7 +188,7 @@ impl Monomorphs {
     fn warn_missing<'a>(
         generic_name: &str,
         monomorph_name: &str,
-        generic: &'a[Field], // lifetime needed to make check_in_mono work
+        generic: &'a [Field], // lifetime needed to make check_in_mono work
         monomorph: &[Field],
         params: &GenericParams,
     ) {
@@ -182,11 +200,8 @@ impl Monomorphs {
             Self::have_shrunk(&gf.ty, &mf.ty, params).then(|| gf.name.as_str())
         };
 
-        let invalid: Vec<&str> = generic
-            .iter()
-            .filter_map(check_in_mono)
-            .collect();
-            
+        let invalid: Vec<&str> = generic.iter().filter_map(check_in_mono).collect();
+
         if !invalid.is_empty() {
             warn!(
                 "C++ bindings for {} (instantiated as {}) may be ill-formed: \
@@ -197,13 +212,13 @@ impl Monomorphs {
             );
         }
     }
-    
+
     // Checks whether specialization of `generic` into `monomorph` produced ill-formed C++ bindings.
     // In particular, we check for ZST arrays and function arguments.
     // This function follows the behavior of `GenericArgument::specialize` and `Type::specialize`,
     // so it must be updated if these functions introduce other kinds of ill-formed bindings.
     fn have_shrunk(generic: &Type, monomorph: &Type, params: &GenericParams) -> bool {
-        use crate::bindgen::ir::{Type::*, PrimitiveType};
+        use crate::bindgen::ir::{PrimitiveType, Type::*};
         match (generic, monomorph) {
             // `g` is one of the generic parameters, so `m` here is the argument that was substituted for it.
             // Just by itself, it might be correct; when leads to a dropped function argument or array of ZST,
@@ -212,18 +227,21 @@ impl Monomorphs {
             // If the substitution itself is another generic, it should be checked on its own.
             (Path(p), _) if params.iter().any(|gp| gp.name() == p.path()) => false,
             // `g` is a non-parameter path such as `gp<...>`: recurse into its generic arguments.
-            (Path(gp), Path(mp)) => {
-                gp.generics()
-                    .iter()
-                    .zip(mp.generics())
-                    .any(|(g, m)| check_gen_arg(g, m, params))
-            }
+            (Path(gp), Path(mp)) => gp
+                .generics()
+                .iter()
+                .zip(mp.generics())
+                .any(|(g, m)| check_gen_arg(g, m, params)),
             (Ptr { ty: gt, .. }, Ptr { ty: mt, .. }) => Self::have_shrunk(gt, mt, params),
             (Array(ge, _), Array(me, _)) => Self::have_shrunk(ge, me, params),
             (
-                FuncPtr { ret: gr, args: ga, .. },
-                FuncPtr { ret: mr, args: ma, .. },
-            ) => {                
+                FuncPtr {
+                    ret: gr, args: ga, ..
+                },
+                FuncPtr {
+                    ret: mr, args: ma, ..
+                },
+            ) => {
                 ga.len() != ma.len() // Only recurse if arguments weren't dropped
                     || Self::have_shrunk(gr, mr, params)
                     || ga
@@ -258,7 +276,7 @@ impl Monomorphs {
         Self::drain_snd(&mut self.structs)
     }
 
-    pub fn drain_unions(&mut self) -> Vec<Union> {       
+    pub fn drain_unions(&mut self) -> Vec<Union> {
         Self::drain_snd(&mut self.unions)
     }
 
@@ -271,10 +289,7 @@ impl Monomorphs {
     }
 
     fn drain_snd<T, U>(v: &mut Vec<(T, U)>) -> Vec<U> {
-        mem::take(v)
-            .into_iter()
-            .map(|(_, u)| u)
-            .collect()
+        mem::take(v).into_iter().map(|(_, u)| u).collect()
     }
 }
 
@@ -291,16 +306,14 @@ fn check_gen_arg(g: &GenericArgument, m: &GenericArgument, params: &GenericParam
         // 2) `g` is an array whose element type becomes a ZST (a parameter mapped to a ZST,
         //    or another such array). C++ gets `gp<void[N]>`, which is ill-formed.
         // Anything else means `specialize` changed; report it rather than panic.
-        (GenericArgument::Type(g), GenericArgument::Zst(_)) => {
-            match g {
-                Path(_) => false,
-                Array(_, _) => true,
-                _ => {
-                    warn!("Generic {:?} has been unexpectedly converted to a ZST. Bindings might be ill-formed. Please report a cbindgen bug", g);
-                    true
-                }                                
+        (GenericArgument::Type(g), GenericArgument::Zst(_)) => match g {
+            Path(_) => false,
+            Array(_, _) => true,
+            _ => {
+                warn!("Generic {:?} has been unexpectedly converted to a ZST. Bindings might be ill-formed. Please report a cbindgen bug", g);
+                true
             }
-        }
+        },
         _ => false,
     }
 }
